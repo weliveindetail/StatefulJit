@@ -74,16 +74,6 @@ static int gettok() {
     return tok_number;
   }
 
-  if (LastChar == '#') {
-    // Comment until end of line.
-    do
-      LastChar = getchar();
-    while (LastChar != EOF && LastChar != '\n' && LastChar != '\r');
-
-    if (LastChar != EOF)
-      return gettok();
-  }
-
   // Check for end of file.  Don't eat the EOF.
   if (LastChar == EOF)
     return tok_eof;
