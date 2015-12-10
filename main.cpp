@@ -29,20 +29,18 @@ enum Token {
   tok_eof = -1,
 
   // primary
-  tok_identifier = -4,
-  tok_number = -5,
-
-  // todo: check usage for 'in' in variable definitions
-  tok_in = -10,
+  tok_identifier = -2,
+  tok_number = -3,
 
   // var definition
-  tok_var = -13
+  tok_var = -4,
+  tok_in = -5
 };
 
 static std::string IdentifierStr; // Filled in if tok_identifier
 static double NumVal;             // Filled in if tok_number
 
-                                  /// gettok - Return the next token from standard input.
+/// gettok - Return the next token from standard input.
 static int gettok() {
   static int LastChar = ' ';
 
