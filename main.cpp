@@ -191,12 +191,10 @@ namespace {
 
   /// TopLevelExprAST - This class represents a top-level function definition.
   class TopLevelExprAST {
-    std::unique_ptr<PrototypeAST> Proto;
     std::unique_ptr<ExprAST> Body;
 
   public:
-    TopLevelExprAST(std::unique_ptr<ExprAST> Body)
-      : Proto(std::move(llvm::make_unique<PrototypeAST>("__toplevel_expr", std::vector<std::string>()))), Body(std::move(Body)) {}
+    TopLevelExprAST(std::unique_ptr<ExprAST> Body) : Body(std::move(Body)) {}
     Function *codegen();
   };
 } // end anonymous namespace
@@ -587,6 +585,7 @@ Function *PrototypeAST::codegen() {
 Function *TopLevelExprAST::codegen() {
   // Transfer ownership of the prototype to the FunctionProtos map, but keep a
   // reference to it for use below.
+  auto Proto = llvm::make_unique<PrototypeAST>("__toplevel_expr", std::vector<std::string>());
   auto &P = *Proto;
   FunctionProtos[Proto->getName()] = std::move(Proto);
   Function *TheFunction = getFunction(P.getName());
