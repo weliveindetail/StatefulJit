@@ -261,14 +261,14 @@ static std::unique_ptr<ExprAST> ParseVarExpr() {
 ///   ::= varexpr
 static std::unique_ptr<ExprAST> ParsePrimary() {
   switch (CurTok) {
-  default:
-    return Error("unknown token when expecting an expression");
-  case tok_identifier:
-    return ParseIdentifierExpr();
-  case tok_number:
-    return ParseNumberExpr();
-  case tok_var:
-    return ParseVarExpr();
+    case tok_identifier:
+      return ParseIdentifierExpr();
+    case tok_number:
+      return ParseNumberExpr();
+    case tok_var:
+      return ParseVarExpr();
+    default:
+      return Error("unknown token when expecting an expression");
   }
 }
 
@@ -318,7 +318,6 @@ static std::unique_ptr<ExprAST> ParseExpression() {
   return ParseBinOpRHS(0, std::move(LHS));
 }
 
-// todo: use simplified TopLevelExprAST
 /// toplevelexpr ::= expression
 static std::unique_ptr<TopLevelExprAST> ParseTopLevelExpr() {
   if (auto E = ParseExpression()) {
@@ -406,19 +405,19 @@ Value *BinaryExprAST::codegen() {
     return nullptr;
 
   switch (Op) {
-  case '+':
-    return Builder.CreateFAdd(L, R, "addtmp");
-  case '-':
-    return Builder.CreateFSub(L, R, "subtmp");
-  case '*':
-    return Builder.CreateFMul(L, R, "multmp");
-  case '<':
-    L = Builder.CreateFCmpULT(L, R, "cmptmp");
-    // Convert bool 0/1 to double 0.0 or 1.0
-    return Builder.CreateUIToFP(L, Type::getDoubleTy(getGlobalContext()),
-      "booltmp");
-  default:
-    break;
+    case '+':
+      return Builder.CreateFAdd(L, R, "addtmp");
+    case '-':
+      return Builder.CreateFSub(L, R, "subtmp");
+    case '*':
+      return Builder.CreateFMul(L, R, "multmp");
+    case '<':
+      L = Builder.CreateFCmpULT(L, R, "cmptmp");
+      // Convert bool 0/1 to double 0.0 or 1.0
+      return Builder.CreateUIToFP(L, Type::getDoubleTy(getGlobalContext()), "booltmp");
+
+    default:
+      return nullptr;
   }
 }
 
@@ -559,14 +558,14 @@ static void MainLoop() {
   while (1) {
     fprintf(stderr, "ready> ");
     switch (CurTok) {
-    case tok_eof:
-      return;
-    case ';': // ignore top-level semicolons.
-      getNextToken();
-      break;
-    default:
-      HandleTopLevelExpression();
-      break;
+      case tok_eof:
+        return;
+      case ';': // ignore top-level semicolons.
+        getNextToken();
+        break;
+      default:
+        HandleTopLevelExpression();
+        break;
     }
   }
 }
