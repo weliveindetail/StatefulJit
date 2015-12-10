@@ -189,15 +189,14 @@ namespace {
     unsigned getBinaryPrecedence() const { return Precedence; }
   };
 
-  /// FunctionAST - This class represents a function definition itself.
-  class FunctionAST {
+  /// TopLevelExprAST - This class represents a top-level function definition.
+  class TopLevelExprAST {
     std::unique_ptr<PrototypeAST> Proto;
     std::unique_ptr<ExprAST> Body;
 
   public:
-    FunctionAST(std::unique_ptr<PrototypeAST> Proto,
-      std::unique_ptr<ExprAST> Body)
-      : Proto(std::move(Proto)), Body(std::move(Body)) {}
+    TopLevelExprAST(std::unique_ptr<ExprAST> Body)
+      : Proto(std::move(llvm::make_unique<PrototypeAST>("__toplevel_expr", std::vector<std::string>()))), Body(std::move(Body)) {}
     Function *codegen();
   };
 } // end anonymous namespace
@@ -389,12 +388,10 @@ static std::unique_ptr<ExprAST> ParseExpression() {
 
 // todo: use simplified TopLevelExprAST
 /// toplevelexpr ::= expression
-static std::unique_ptr<FunctionAST> ParseTopLevelExpr() {
+static std::unique_ptr<TopLevelExprAST> ParseTopLevelExpr() {
   if (auto E = ParseExpression()) {
-    // Make an anonymous proto.
-    auto Proto = llvm::make_unique<PrototypeAST>("__anon_expr",
-      std::vector<std::string>());
-    return llvm::make_unique<FunctionAST>(std::move(Proto), std::move(E));
+    // Make an anonymous top-level expression.
+    return llvm::make_unique<TopLevelExprAST>(std::move(E));
   }
   return nullptr;
 }
@@ -587,7 +584,7 @@ Function *PrototypeAST::codegen() {
   return F;
 }
 
-Function *FunctionAST::codegen() {
+Function *TopLevelExprAST::codegen() {
   // Transfer ownership of the prototype to the FunctionProtos map, but keep a
   // reference to it for use below.
   auto &P = *Proto;
@@ -673,7 +670,7 @@ static void HandleTopLevelExpression() {
       InitializeModuleAndPassManager();
 
       // Search the JIT for the __anon_expr symbol.
-      auto ExprSymbol = TheJIT->findSymbol("__anon_expr");
+      auto ExprSymbol = TheJIT->findSymbol("__toplevel_expr");
       assert(ExprSymbol && "Function not found");
 
       // Get the symbol's address and cast it to the right type (takes no
