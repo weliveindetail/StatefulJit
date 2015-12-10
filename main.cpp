@@ -469,14 +469,6 @@ Value *BinaryExprAST::codegen() {
   default:
     break;
   }
-
-  // If it wasn't a builtin binary operator, it must be a user defined one. Emit
-  // a call to it.
-  Function *F = getFunction(std::string("binary") + Op);
-  assert(F && "binary operator not found!");
-
-  Value *Ops[] = { L, R };
-  return Builder.CreateCall(F, Ops, "binop");
 }
 
 Value *VarExprAST::codegen() {
