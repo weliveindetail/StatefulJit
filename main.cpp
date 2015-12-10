@@ -549,14 +549,14 @@ Value *VarExprAST::codegen() {
 }
 
 Function *TopLevelPrototypeAST::codegen() {
-  // the top-level function takes no arguments and returns a double
-  FunctionType *type = FunctionType::get(Type::getDoubleTy(getGlobalContext()), false);
-  return Function::Create(type, Function::ExternalLinkage, Name, TheModule.get());
+  return nullptr;
 }
 
 Function *TopLevelExprAST::codegen() {
-  auto proto = llvm::make_unique<TopLevelPrototypeAST>();
-  Function *TheFunction = proto->codegen();
+  // the top-level function takes no arguments and returns a double
+  Function *TheFunction = Function::Create(
+    FunctionType::get(Type::getDoubleTy(getGlobalContext()), false),
+    Function::ExternalLinkage, "__toplevel_expr", TheModule.get());
 
   // Create a new basic block to start insertion into.
   BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", TheFunction);
