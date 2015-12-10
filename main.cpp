@@ -124,17 +124,6 @@ namespace {
     Value *codegen() override;
   };
 
-  /// UnaryExprAST - Expression class for a unary operator.
-  class UnaryExprAST : public ExprAST {
-    char Opcode;
-    std::unique_ptr<ExprAST> Operand;
-
-  public:
-    UnaryExprAST(char Opcode, std::unique_ptr<ExprAST> Operand)
-      : Opcode(Opcode), Operand(std::move(Operand)) {}
-    Value *codegen() override;
-  };
-
   /// BinaryExprAST - Expression class for a binary operator.
   class BinaryExprAST : public ExprAST {
     char Op;
@@ -293,22 +282,6 @@ static std::unique_ptr<ExprAST> ParsePrimary() {
   }
 }
 
-/// unary
-///   ::= primary
-///   ::= '!' unary
-static std::unique_ptr<ExprAST> ParseUnary() {
-  // If the current token is not an operator, it must be a primary expr.
-  if (!isascii(CurTok) || CurTok == '(' || CurTok == ',')
-    return ParsePrimary();
-
-  // If this is a unary operator, read it.
-  int Opc = CurTok;
-  getNextToken();
-  if (auto Operand = ParseUnary())
-    return llvm::make_unique<UnaryExprAST>(Opc, std::move(Operand));
-  return nullptr;
-}
-
 /// binoprhs
 ///   ::= ('+' unary)*
 static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec,
@@ -326,8 +299,8 @@ static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec,
     int BinOp = CurTok;
     getNextToken(); // eat binop
 
-                    // Parse the unary expression after the binary operator.
-    auto RHS = ParseUnary();
+    // Parse the expression after the binary operator.
+    auto RHS = ParsePrimary();
     if (!RHS)
       return nullptr;
 
@@ -348,7 +321,7 @@ static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec,
 
 /// expression ::= unary binoprhs
 static std::unique_ptr<ExprAST> ParseExpression() {
-  auto LHS = ParseUnary();
+  auto LHS = ParsePrimary();
   if (!LHS)
     return nullptr;
 
@@ -411,18 +384,6 @@ Value *VariableExprAST::codegen() {
 
   // Load the value.
   return Builder.CreateLoad(V, Name.c_str());
-}
-
-Value *UnaryExprAST::codegen() {
-  Value *OperandV = Operand->codegen();
-  if (!OperandV)
-    return nullptr;
-
-  Function *F = getFunction(std::string("unary") + Opcode);
-  if (!F)
-    return ErrorV("Unknown unary operator");
-
-  return Builder.CreateCall(F, OperandV, "unop");
 }
 
 Value *BinaryExprAST::codegen() {
