@@ -160,33 +160,17 @@ namespace {
     Value *codegen() override;
   };
 
-  // todo: simplify into TopLevelExprAST
-  /// PrototypeAST - This class represents the "prototype" for a function,
-  /// which captures its name, and its argument names (thus implicitly the number
-  /// of arguments the function takes), as well as if it is an operator.
-  class PrototypeAST {
+  /// TopLevelPrototypeAST - This class represents the 
+  /// dummy "prototype" for the top-level function
+  class TopLevelPrototypeAST {
     std::string Name;
     std::vector<std::string> Args;
-    bool IsOperator;
-    unsigned Precedence; // Precedence if a binary op.
 
   public:
-    PrototypeAST(const std::string &Name, std::vector<std::string> Args,
-      bool IsOperator = false, unsigned Prec = 0)
-      : Name(Name), Args(std::move(Args)), IsOperator(IsOperator),
-      Precedence(Prec) {}
+    TopLevelPrototypeAST()
+      : Name("__toplevel_expr"), Args(std::vector<std::string>()) {}
+
     Function *codegen();
-    const std::string &getName() const { return Name; }
-
-    bool isUnaryOp() const { return IsOperator && Args.size() == 1; }
-    bool isBinaryOp() const { return IsOperator && Args.size() == 2; }
-
-    char getOperatorName() const {
-      assert(isUnaryOp() || isBinaryOp());
-      return Name[Name.size() - 1];
-    }
-
-    unsigned getBinaryPrecedence() const { return Precedence; }
   };
 
   /// TopLevelExprAST - This class represents a top-level function definition.
@@ -231,7 +215,7 @@ std::unique_ptr<ExprAST> Error(const char *Str) {
   return nullptr;
 }
 
-std::unique_ptr<PrototypeAST> ErrorP(const char *Str) {
+std::unique_ptr<TopLevelPrototypeAST> ErrorP(const char *Str) {
   Error(Str);
   return nullptr;
 }
@@ -403,7 +387,7 @@ static IRBuilder<> Builder(getGlobalContext());
 static std::map<std::string, AllocaInst *> NamedValues;
 static std::unique_ptr<legacy::FunctionPassManager> TheFPM;
 static std::unique_ptr<KaleidoscopeJIT> TheJIT;
-static std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
+static std::map<std::string, std::unique_ptr<TopLevelPrototypeAST>> FunctionProtos;
 
 Value *ErrorV(const char *Str) {
   Error(Str);
@@ -564,7 +548,7 @@ Value *VarExprAST::codegen() {
   return BodyVal;
 }
 
-Function *PrototypeAST::codegen() {
+Function *TopLevelPrototypeAST::codegen() {
   // Make the function type:  double(double,double) etc.
   std::vector<Type *> Doubles(Args.size(),
     Type::getDoubleTy(getGlobalContext()));
@@ -583,18 +567,8 @@ Function *PrototypeAST::codegen() {
 }
 
 Function *TopLevelExprAST::codegen() {
-  // Transfer ownership of the prototype to the FunctionProtos map, but keep a
-  // reference to it for use below.
-  auto Proto = llvm::make_unique<PrototypeAST>("__toplevel_expr", std::vector<std::string>());
-  auto &P = *Proto;
-  FunctionProtos[Proto->getName()] = std::move(Proto);
-  Function *TheFunction = getFunction(P.getName());
-  if (!TheFunction)
-    return nullptr;
-
-  // If this is an operator, install it.
-  if (P.isBinaryOp())
-    BinopPrecedence[P.getOperatorName()] = P.getBinaryPrecedence();
+  auto proto = llvm::make_unique<TopLevelPrototypeAST>();
+  Function *TheFunction = proto->codegen();
 
   // Create a new basic block to start insertion into.
   BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", TheFunction);
@@ -629,8 +603,6 @@ Function *TopLevelExprAST::codegen() {
   // Error reading body, remove function.
   TheFunction->eraseFromParent();
 
-  if (P.isBinaryOp())
-    BinopPrecedence.erase(Proto->getOperatorName());
   return nullptr;
 }
 
