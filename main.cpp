@@ -484,11 +484,11 @@ Value *BinaryExprAST::codegen() {
       return nullptr;
 
     // Look up the name.
-    Value *Variable = NamedValues[LHSE->getName()];
-    if (!Variable)
+    auto item = NamedValues.find(LHSE->getName());
+    if (item == NamedValues.end())
       return ErrorV("Unknown variable name");
 
-    Builder.CreateStore(Val, Variable);
+    Builder.CreateStore(Val, item->second);
     return Val;
   }
 
