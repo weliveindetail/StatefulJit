@@ -74,16 +74,6 @@ static int gettok() {
     return tok_number;
   }
 
-  if (LastChar == '#') {
-    // Comment until end of line.
-    do
-      LastChar = getchar();
-    while (LastChar != EOF && LastChar != '\n' && LastChar != '\r');
-
-    if (LastChar != EOF)
-      return gettok();
-  }
-
   // Check for end of file.  Don't eat the EOF.
   if (LastChar == EOF)
     return tok_eof;
@@ -124,17 +114,6 @@ namespace {
     Value *codegen() override;
   };
 
-  /// UnaryExprAST - Expression class for a unary operator.
-  class UnaryExprAST : public ExprAST {
-    char Opcode;
-    std::unique_ptr<ExprAST> Operand;
-
-  public:
-    UnaryExprAST(char Opcode, std::unique_ptr<ExprAST> Operand)
-      : Opcode(Opcode), Operand(std::move(Operand)) {}
-    Value *codegen() override;
-  };
-
   /// BinaryExprAST - Expression class for a binary operator.
   class BinaryExprAST : public ExprAST {
     char Op;
@@ -160,44 +139,12 @@ namespace {
     Value *codegen() override;
   };
 
-  // todo: simplify into TopLevelExprAST
-  /// PrototypeAST - This class represents the "prototype" for a function,
-  /// which captures its name, and its argument names (thus implicitly the number
-  /// of arguments the function takes), as well as if it is an operator.
-  class PrototypeAST {
-    std::string Name;
-    std::vector<std::string> Args;
-    bool IsOperator;
-    unsigned Precedence; // Precedence if a binary op.
-
-  public:
-    PrototypeAST(const std::string &Name, std::vector<std::string> Args,
-      bool IsOperator = false, unsigned Prec = 0)
-      : Name(Name), Args(std::move(Args)), IsOperator(IsOperator),
-      Precedence(Prec) {}
-    Function *codegen();
-    const std::string &getName() const { return Name; }
-
-    bool isUnaryOp() const { return IsOperator && Args.size() == 1; }
-    bool isBinaryOp() const { return IsOperator && Args.size() == 2; }
-
-    char getOperatorName() const {
-      assert(isUnaryOp() || isBinaryOp());
-      return Name[Name.size() - 1];
-    }
-
-    unsigned getBinaryPrecedence() const { return Precedence; }
-  };
-
-  /// FunctionAST - This class represents a function definition itself.
-  class FunctionAST {
-    std::unique_ptr<PrototypeAST> Proto;
+  /// TopLevelExprAST - This class represents a top-level function definition.
+  class TopLevelExprAST {
     std::unique_ptr<ExprAST> Body;
 
   public:
-    FunctionAST(std::unique_ptr<PrototypeAST> Proto,
-      std::unique_ptr<ExprAST> Body)
-      : Proto(std::move(Proto)), Body(std::move(Body)) {}
+    TopLevelExprAST(std::unique_ptr<ExprAST> Body) : Body(std::move(Body)) {}
     Function *codegen();
   };
 } // end anonymous namespace
@@ -234,7 +181,7 @@ std::unique_ptr<ExprAST> Error(const char *Str) {
   return nullptr;
 }
 
-std::unique_ptr<PrototypeAST> ErrorP(const char *Str) {
+std::unique_ptr<ExprAST> ErrorP(const char *Str) {
   Error(Str);
   return nullptr;
 }
@@ -314,31 +261,15 @@ static std::unique_ptr<ExprAST> ParseVarExpr() {
 ///   ::= varexpr
 static std::unique_ptr<ExprAST> ParsePrimary() {
   switch (CurTok) {
-  default:
-    return Error("unknown token when expecting an expression");
-  case tok_identifier:
-    return ParseIdentifierExpr();
-  case tok_number:
-    return ParseNumberExpr();
-  case tok_var:
-    return ParseVarExpr();
+    case tok_identifier:
+      return ParseIdentifierExpr();
+    case tok_number:
+      return ParseNumberExpr();
+    case tok_var:
+      return ParseVarExpr();
+    default:
+      return Error("unknown token when expecting an expression");
   }
-}
-
-/// unary
-///   ::= primary
-///   ::= '!' unary
-static std::unique_ptr<ExprAST> ParseUnary() {
-  // If the current token is not an operator, it must be a primary expr.
-  if (!isascii(CurTok) || CurTok == '(' || CurTok == ',')
-    return ParsePrimary();
-
-  // If this is a unary operator, read it.
-  int Opc = CurTok;
-  getNextToken();
-  if (auto Operand = ParseUnary())
-    return llvm::make_unique<UnaryExprAST>(Opc, std::move(Operand));
-  return nullptr;
 }
 
 /// binoprhs
@@ -358,8 +289,8 @@ static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec,
     int BinOp = CurTok;
     getNextToken(); // eat binop
 
-                    // Parse the unary expression after the binary operator.
-    auto RHS = ParseUnary();
+    // Parse the expression after the binary operator.
+    auto RHS = ParsePrimary();
     if (!RHS)
       return nullptr;
 
@@ -380,21 +311,18 @@ static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec,
 
 /// expression ::= unary binoprhs
 static std::unique_ptr<ExprAST> ParseExpression() {
-  auto LHS = ParseUnary();
+  auto LHS = ParsePrimary();
   if (!LHS)
     return nullptr;
 
   return ParseBinOpRHS(0, std::move(LHS));
 }
 
-// todo: use simplified TopLevelExprAST
 /// toplevelexpr ::= expression
-static std::unique_ptr<FunctionAST> ParseTopLevelExpr() {
+static std::unique_ptr<TopLevelExprAST> ParseTopLevelExpr() {
   if (auto E = ParseExpression()) {
-    // Make an anonymous proto.
-    auto Proto = llvm::make_unique<PrototypeAST>("__anon_expr",
-      std::vector<std::string>());
-    return llvm::make_unique<FunctionAST>(std::move(Proto), std::move(E));
+    // Make an anonymous top-level expression.
+    return llvm::make_unique<TopLevelExprAST>(std::move(E));
   }
   return nullptr;
 }
@@ -408,7 +336,6 @@ static IRBuilder<> Builder(getGlobalContext());
 static std::map<std::string, AllocaInst *> NamedValues;
 static std::unique_ptr<legacy::FunctionPassManager> TheFPM;
 static std::unique_ptr<KaleidoscopeJIT> TheJIT;
-static std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
 
 Value *ErrorV(const char *Str) {
   Error(Str);
@@ -419,12 +346,6 @@ Function *getFunction(std::string Name) {
   // First, see if the function has already been added to the current module.
   if (auto *F = TheModule->getFunction(Name))
     return F;
-
-  // If not, check whether we can codegen the declaration from some existing
-  // prototype.
-  auto FI = FunctionProtos.find(Name);
-  if (FI != FunctionProtos.end())
-    return FI->second->codegen();
 
   // If no existing prototype exists, return null.
   return nullptr;
@@ -452,18 +373,6 @@ Value *VariableExprAST::codegen() {
 
   // Load the value.
   return Builder.CreateLoad(V, Name.c_str());
-}
-
-Value *UnaryExprAST::codegen() {
-  Value *OperandV = Operand->codegen();
-  if (!OperandV)
-    return nullptr;
-
-  Function *F = getFunction(std::string("unary") + Opcode);
-  if (!F)
-    return ErrorV("Unknown unary operator");
-
-  return Builder.CreateCall(F, OperandV, "unop");
 }
 
 Value *BinaryExprAST::codegen() {
@@ -496,28 +405,20 @@ Value *BinaryExprAST::codegen() {
     return nullptr;
 
   switch (Op) {
-  case '+':
-    return Builder.CreateFAdd(L, R, "addtmp");
-  case '-':
-    return Builder.CreateFSub(L, R, "subtmp");
-  case '*':
-    return Builder.CreateFMul(L, R, "multmp");
-  case '<':
-    L = Builder.CreateFCmpULT(L, R, "cmptmp");
-    // Convert bool 0/1 to double 0.0 or 1.0
-    return Builder.CreateUIToFP(L, Type::getDoubleTy(getGlobalContext()),
-      "booltmp");
-  default:
-    break;
+    case '+':
+      return Builder.CreateFAdd(L, R, "addtmp");
+    case '-':
+      return Builder.CreateFSub(L, R, "subtmp");
+    case '*':
+      return Builder.CreateFMul(L, R, "multmp");
+    case '<':
+      L = Builder.CreateFCmpULT(L, R, "cmptmp");
+      // Convert bool 0/1 to double 0.0 or 1.0
+      return Builder.CreateUIToFP(L, Type::getDoubleTy(getGlobalContext()), "booltmp");
+
+    default:
+      return nullptr;
   }
-
-  // If it wasn't a builtin binary operator, it must be a user defined one. Emit
-  // a call to it.
-  Function *F = getFunction(std::string("binary") + Op);
-  assert(F && "binary operator not found!");
-
-  Value *Ops[] = { L, R };
-  return Builder.CreateCall(F, Ops, "binop");
 }
 
 Value *VarExprAST::codegen() {
@@ -569,73 +470,34 @@ Value *VarExprAST::codegen() {
   return BodyVal;
 }
 
-Function *PrototypeAST::codegen() {
-  // Make the function type:  double(double,double) etc.
-  std::vector<Type *> Doubles(Args.size(),
-    Type::getDoubleTy(getGlobalContext()));
-  FunctionType *FT =
-    FunctionType::get(Type::getDoubleTy(getGlobalContext()), Doubles, false);
-
-  Function *F =
-    Function::Create(FT, Function::ExternalLinkage, Name, TheModule.get());
-
-  // Set names for all arguments.
-  unsigned Idx = 0;
-  for (auto &Arg : F->args())
-    Arg.setName(Args[Idx++]);
-
-  return F;
-}
-
-Function *FunctionAST::codegen() {
-  // Transfer ownership of the prototype to the FunctionProtos map, but keep a
-  // reference to it for use below.
-  auto &P = *Proto;
-  FunctionProtos[Proto->getName()] = std::move(Proto);
-  Function *TheFunction = getFunction(P.getName());
-  if (!TheFunction)
-    return nullptr;
-
-  // If this is an operator, install it.
-  if (P.isBinaryOp())
-    BinopPrecedence[P.getOperatorName()] = P.getBinaryPrecedence();
+Function *TopLevelExprAST::codegen() {
+  // the top-level function takes no arguments and returns a double
+  Function *TheFunction = Function::Create(
+    FunctionType::get(Type::getDoubleTy(getGlobalContext()), false),
+    Function::ExternalLinkage, "__toplevel_expr", TheModule.get());
 
   // Create a new basic block to start insertion into.
   BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", TheFunction);
   Builder.SetInsertPoint(BB);
 
-  // Record the function arguments in the NamedValues map.
-  NamedValues.clear();
-  for (auto &Arg : TheFunction->args()) {
-    // Create an alloca for this variable.
-    AllocaInst *Alloca = CreateEntryBlockAlloca(TheFunction, Arg.getName());
-
-    // Store the initial value into the alloca.
-    Builder.CreateStore(&Arg, Alloca);
-
-    // Add arguments to variable symbol table.
-    NamedValues[Arg.getName()] = Alloca;
-  }
-
-  if (Value *RetVal = Body->codegen()) {
-    // Finish off the function.
-    Builder.CreateRet(RetVal);
-
-    // Validate the generated code, checking for consistency.
-    verifyFunction(*TheFunction);
-
-    // Run the optimizer on the function.
-    TheFPM->run(*TheFunction);
-
-    return TheFunction;
-  }
+  Value *RetVal = Body->codegen();
 
   // Error reading body, remove function.
-  TheFunction->eraseFromParent();
+  if (!RetVal) {
+    TheFunction->eraseFromParent();
+    return nullptr;
+  }
 
-  if (P.isBinaryOp())
-    BinopPrecedence.erase(Proto->getOperatorName());
-  return nullptr;
+  // Finish off the function.
+  Builder.CreateRet(RetVal);
+
+  // Validate the generated code, checking for consistency.
+  verifyFunction(*TheFunction);
+
+  // Run the optimizer on the function.
+  TheFPM->run(*TheFunction);
+
+  return TheFunction;
 }
 
 //===----------------------------------------------------------------------===//
@@ -673,7 +535,7 @@ static void HandleTopLevelExpression() {
       InitializeModuleAndPassManager();
 
       // Search the JIT for the __anon_expr symbol.
-      auto ExprSymbol = TheJIT->findSymbol("__anon_expr");
+      auto ExprSymbol = TheJIT->findSymbol("__toplevel_expr");
       assert(ExprSymbol && "Function not found");
 
       // Get the symbol's address and cast it to the right type (takes no
@@ -696,32 +558,16 @@ static void MainLoop() {
   while (1) {
     fprintf(stderr, "ready> ");
     switch (CurTok) {
-    case tok_eof:
-      return;
-    case ';': // ignore top-level semicolons.
-      getNextToken();
-      break;
-    default:
-      HandleTopLevelExpression();
-      break;
+      case tok_eof:
+        return;
+      case ';': // ignore top-level semicolons.
+        getNextToken();
+        break;
+      default:
+        HandleTopLevelExpression();
+        break;
     }
   }
-}
-
-//===----------------------------------------------------------------------===//
-// "Library" functions that can be "extern'd" from user code.
-//===----------------------------------------------------------------------===//
-
-/// putchard - putchar that takes a double and returns 0.
-extern "C" double putchard(double X) {
-  fputc((char)X, stderr);
-  return 0;
-}
-
-/// printd - printf that takes a double prints it as "%f\n", returning 0.
-extern "C" double printd(double X) {
-  fprintf(stderr, "%f\n", X);
-  return 0;
 }
 
 //===----------------------------------------------------------------------===//
