@@ -562,36 +562,24 @@ Function *TopLevelExprAST::codegen() {
   BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", TheFunction);
   Builder.SetInsertPoint(BB);
 
-  // Record the function arguments in the NamedValues map.
-  NamedValues.clear();
-  for (auto &Arg : TheFunction->args()) {
-    // Create an alloca for this variable.
-    AllocaInst *Alloca = CreateEntryBlockAlloca(TheFunction, Arg.getName());
-
-    // Store the initial value into the alloca.
-    Builder.CreateStore(&Arg, Alloca);
-
-    // Add arguments to variable symbol table.
-    NamedValues[Arg.getName()] = Alloca;
-  }
-
-  if (Value *RetVal = Body->codegen()) {
-    // Finish off the function.
-    Builder.CreateRet(RetVal);
-
-    // Validate the generated code, checking for consistency.
-    verifyFunction(*TheFunction);
-
-    // Run the optimizer on the function.
-    TheFPM->run(*TheFunction);
-
-    return TheFunction;
-  }
+  Value *RetVal = Body->codegen();
 
   // Error reading body, remove function.
-  TheFunction->eraseFromParent();
+  if (!RetVal) {
+    TheFunction->eraseFromParent();
+    return nullptr;
+  }
 
-  return nullptr;
+  // Finish off the function.
+  Builder.CreateRet(RetVal);
+
+  // Validate the generated code, checking for consistency.
+  verifyFunction(*TheFunction);
+
+  // Run the optimizer on the function.
+  TheFPM->run(*TheFunction);
+
+  return TheFunction;
 }
 
 //===----------------------------------------------------------------------===//
