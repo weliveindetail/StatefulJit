@@ -160,19 +160,6 @@ namespace {
     Value *codegen() override;
   };
 
-  /// TopLevelPrototypeAST - This class represents the 
-  /// dummy "prototype" for the top-level function
-  class TopLevelPrototypeAST {
-    std::string Name;
-    std::vector<std::string> Args;
-
-  public:
-    TopLevelPrototypeAST()
-      : Name("__toplevel_expr"), Args(std::vector<std::string>()) {}
-
-    Function *codegen();
-  };
-
   /// TopLevelExprAST - This class represents a top-level function definition.
   class TopLevelExprAST {
     std::unique_ptr<ExprAST> Body;
@@ -215,7 +202,7 @@ std::unique_ptr<ExprAST> Error(const char *Str) {
   return nullptr;
 }
 
-std::unique_ptr<TopLevelPrototypeAST> ErrorP(const char *Str) {
+std::unique_ptr<ExprAST> ErrorP(const char *Str) {
   Error(Str);
   return nullptr;
 }
@@ -387,7 +374,6 @@ static IRBuilder<> Builder(getGlobalContext());
 static std::map<std::string, AllocaInst *> NamedValues;
 static std::unique_ptr<legacy::FunctionPassManager> TheFPM;
 static std::unique_ptr<KaleidoscopeJIT> TheJIT;
-static std::map<std::string, std::unique_ptr<TopLevelPrototypeAST>> FunctionProtos;
 
 Value *ErrorV(const char *Str) {
   Error(Str);
@@ -398,12 +384,6 @@ Function *getFunction(std::string Name) {
   // First, see if the function has already been added to the current module.
   if (auto *F = TheModule->getFunction(Name))
     return F;
-
-  // If not, check whether we can codegen the declaration from some existing
-  // prototype.
-  auto FI = FunctionProtos.find(Name);
-  if (FI != FunctionProtos.end())
-    return FI->second->codegen();
 
   // If no existing prototype exists, return null.
   return nullptr;
@@ -546,10 +526,6 @@ Value *VarExprAST::codegen() {
 
   // Return the body computation.
   return BodyVal;
-}
-
-Function *TopLevelPrototypeAST::codegen() {
-  return nullptr;
 }
 
 Function *TopLevelExprAST::codegen() {
