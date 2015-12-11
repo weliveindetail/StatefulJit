@@ -44,5 +44,8 @@
     <ClInclude Include="Codegen.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="TestStatefulPJHook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
