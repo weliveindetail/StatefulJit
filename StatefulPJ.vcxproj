@@ -39,7 +39,7 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v140</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
@@ -114,6 +114,13 @@
       <AdditionalDependencies>lib\LLVMExecutionEngine.lib;lib\LLVMRuntimeDyld.lib;lib\LLVMX86CodeGen.lib;lib\LLVMAsmPrinter.lib;lib\LLVMSelectionDAG.lib;lib\LLVMCodeGen.lib;lib\LLVMX86Desc.lib;lib\LLVMX86AsmPrinter.lib;lib\LLVMMCDisassembler.lib;lib\LLVMX86Info.lib;lib\LLVMX86Utils.lib;lib\LLVMX86AsmParser.lib;lib\LLVMScalarOpts.lib;lib\LLVMInstCombine.lib;lib\LLVMProfileData.lib;lib\LLVMObject.lib;lib\LLVMBitReader.lib;lib\LLVMMCParser.lib;lib\LLVMTransformUtils.lib;lib\LLVMAnalysis.lib;lib\LLVMTarget.lib;lib\LLVMCore.lib;lib\LLVMMC.lib;lib\LLVMSupport.lib;lib\LLVMInstrumentation.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:\Program Files\LLVM</AdditionalLibraryDirectories>
     </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>true</LinkLibraryDependencies>
+    </ProjectReference>
+    <Lib>
+      <AdditionalLibraryDirectories>C:\Program Files\LLVM;</AdditionalLibraryDirectories>
+      <AdditionalDependencies>lib\LLVMExecutionEngine.lib;lib\LLVMRuntimeDyld.lib;lib\LLVMX86CodeGen.lib;lib\LLVMAsmPrinter.lib;lib\LLVMSelectionDAG.lib;lib\LLVMCodeGen.lib;lib\LLVMX86Desc.lib;lib\LLVMX86AsmPrinter.lib;lib\LLVMMCDisassembler.lib;lib\LLVMX86Info.lib;lib\LLVMX86Utils.lib;lib\LLVMX86AsmParser.lib;lib\LLVMScalarOpts.lib;lib\LLVMInstCombine.lib;lib\LLVMProfileData.lib;lib\LLVMObject.lib;lib\LLVMBitReader.lib;lib\LLVMMCParser.lib;lib\LLVMTransformUtils.lib;lib\LLVMAnalysis.lib;lib\LLVMTarget.lib;lib\LLVMCore.lib;lib\LLVMMC.lib;lib\LLVMSupport.lib;lib\LLVMInstrumentation.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -161,6 +168,7 @@
     <ClInclude Include="KaleidoscopeJIT.h" />
     <ClInclude Include="Lexer.h" />
     <ClInclude Include="Parser.h" />
+    <ClInclude Include="TestStatefulPJHook.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
