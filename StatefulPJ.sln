@@ -6,6 +6,9 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "StatefulPJ", "StatefulPJ.vcxproj", "{C9DC0102-E5D0-42E8-A077-05F7E7994BE4}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TestStatefulPJ", "Test\TestStatefulPJ\TestStatefulPJ.vcxproj", "{55D09DE0-EA94-48ED-B128-B1C9A54DE525}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C9DC0102-E5D0-42E8-A077-05F7E7994BE4} = {C9DC0102-E5D0-42E8-A077-05F7E7994BE4}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
