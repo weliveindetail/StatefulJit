@@ -1,18 +1,4 @@
-//===----- KaleidoscopeJIT.h - A simple JIT for Kaleidoscope ----*- C++ -*-===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
-//
-//===----------------------------------------------------------------------===//
-//
-// Contains a simple JIT definition for use in the kaleidoscope tutorials.
-//
-//===----------------------------------------------------------------------===//
-
-#ifndef LLVM_EXECUTIONENGINE_ORC_KALEIDOSCOPEJIT_H
-#define LLVM_EXECUTIONENGINE_ORC_KALEIDOSCOPEJIT_H
+#pragma once
 
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/RTDyldMemoryManager.h"
@@ -110,5 +96,3 @@ private:
 
 } // End namespace orc.
 } // End namespace llvm
-
-#endif // LLVM_EXECUTIONENGINE_ORC_KALEIDOSCOPEJIT_H
