@@ -1,59 +1,90 @@
 #include <llvm/Analysis/Passes.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
+#include <llvm/Support/TargetSelect.h>
 #include <llvm/Transforms/Scalar.h>
 
 #include "Parser.h"
 
 using llvm::Module;
+using llvm::StringRef;
 using llvm::orc::KaleidoscopeJIT;
 using llvm::legacy::FunctionPassManager;
 
-static void InitializeModuleAndPassManager() {
-  // Open a new module.
-  TheModule = std::make_unique<Module>("my cool jit", llvm::getGlobalContext());
-  TheModule->setDataLayout(TheJIT->getTargetMachine().createDataLayout());
+static int moduleRevision = 0;
 
-  // Create a new pass manager attached to it.
-  TheFPM = std::make_unique<FunctionPassManager>(TheModule.get());
-
-  // Do simple "peephole" optimizations and bit-twiddling optzns.
-  TheFPM->add(llvm::createInstructionCombiningPass());
-  // Reassociate expressions.
-  TheFPM->add(llvm::createReassociatePass());
-  // Eliminate Common SubExpressions.
-  TheFPM->add(llvm::createGVNPass());
-  // Simplify the control flow graph (deleting unreachable blocks, etc).
-  TheFPM->add(llvm::createCFGSimplificationPass());
-
-  TheFPM->doInitialization();
+static void DeleteJitHistory(KaleidoscopeJIT& jit) 
+{
+  moduleRevision = 0;
+  jit.clearModules();
 }
 
-static void HandleTopLevelExpression() {
-  // Evaluate a top-level expression into an anonymous function.
-  if (auto FnAST = ParseTopLevelExpr()) {
-    if (FnAST->codegen()) {
+static std::unique_ptr<KaleidoscopeJIT> SetupJit()
+{
+  moduleRevision = 0;
+  return std::make_unique<KaleidoscopeJIT>();
+}
 
-      // JIT the module containing the anonymous expression, keeping a handle so
-      // we can free it later.
-      auto H = TheJIT->addModule(std::move(TheModule));
-      InitializeModuleAndPassManager();
+static void StaticInit()
+{
+  // LLVM target selection
+  llvm::InitializeNativeTarget();
+  llvm::InitializeNativeTargetAsmPrinter();
+  llvm::InitializeNativeTargetAsmParser();
 
-      // Search the JIT for the __anon_expr symbol.
-      auto ExprSymbol = TheJIT->findSymbol("__toplevel_expr");
-      assert(ExprSymbol && "Function not found");
+  // supported binary operators
+  BinopPrecedence['='] = 2;
+  BinopPrecedence['+'] = 20;
+  BinopPrecedence['-'] = 20;
+  BinopPrecedence['*'] = 40; // highest
+}
 
-      // Get the symbol's address and cast it to the right type (takes no
-      // arguments, returns a double) so we can call it as a native function.
-      double(*FP)() = (double(*)())(intptr_t)ExprSymbol.getAddress();
-      fprintf(stderr, "Evaluated to %f\n", FP());
+static std::unique_ptr<Module> SetupModule(std::string moduleId, const KaleidoscopeJIT& jit)
+{
+  auto module = std::make_unique<Module>(moduleId, llvm::getGlobalContext());
+  module->setDataLayout(jit.getTargetMachine().createDataLayout());
 
-      // Delete the anonymous expression module from the JIT.
-      TheJIT->removeModule(H);
-    }
-  }
-  else {
-    // Skip token for error recovery.
-    getNextToken();
-  }
+  return module;
+}
+
+static std::unique_ptr<FunctionPassManager> SetupPassManager(Module* module_rawptr)
+{
+  auto fpm = std::make_unique<FunctionPassManager>(module_rawptr);
+
+  fpm->add(llvm::createInstructionCombiningPass()); // simple "peephole" and bit-twiddling optzns.
+  fpm->add(llvm::createReassociatePass());          // reassociate expressions
+  fpm->add(llvm::createGVNPass());                  // eliminate common sub-expressions
+  fpm->add(llvm::createCFGSimplificationPass());    // simplify control flow graph
+  fpm->doInitialization();
+
+  return fpm;
+}
+
+static double EvaluateTopLevelExpression(KaleidoscopeJIT& jit, std::string code) {
+  constexpr auto nameId = "__toplevel_expr";
+  auto module_ptr = SetupModule("r" + moduleRevision++, jit);
+  auto fpm_ptr = SetupPassManager(module_ptr.get());
+
+  SetupTestInput(code);
+  getNextToken();
+
+  // eval top-level expression
+  auto ast = ParseTopLevelExpr();
+  assert(ast && "Parsing failed");
+  
+  // generate code into anonymous function
+  Function* toplevelFn = ast->codegen(module_ptr.get(), nameId);
+  assert(ast && "Code generation failed");
+
+  // JIT compile the owner module
+  jit.addModule(std::move(module_ptr));
+
+  // find JIT symbol for compiled function
+  auto jitSymbol = jit.findSymbol(nameId);
+
+  // get address and reinterpret as function pointer
+  double(*FP)() = (double(*)())(intptr_t)jitSymbol.getAddress();
+
+  // run function
+  return FP();
 }

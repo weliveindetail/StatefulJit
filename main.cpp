@@ -18,12 +18,14 @@ using llvm::legacy::FunctionPassManager;
 // ----------------------------------------------------------------------------
 
 static void InitializeModuleAndPassManager() {
+  delete TheModule_rawptr;
+
   // Open a new module.
-  TheModule = std::make_unique<Module>("my cool jit", llvm::getGlobalContext());
-  TheModule->setDataLayout(TheJIT->getTargetMachine().createDataLayout());
+  TheModule_rawptr = new Module("my cool jit", llvm::getGlobalContext());
+  TheModule_rawptr->setDataLayout(TheJIT->getTargetMachine().createDataLayout());
 
   // Create a new pass manager attached to it.
-  TheFPM = std::make_unique<FunctionPassManager>(TheModule.get());
+  TheFPM = std::make_unique<FunctionPassManager>(TheModule_rawptr);
 
   // Do simple "peephole" optimizations and bit-twiddling optzns.
   TheFPM->add(llvm::createInstructionCombiningPass());
@@ -40,14 +42,15 @@ static void InitializeModuleAndPassManager() {
 // ----------------------------------------------------------------------------
 
 static void HandleTopLevelExpression() {
+  InitializeModuleAndPassManager();
+
   // Evaluate a top-level expression into an anonymous function.
   if (auto FnAST = ParseTopLevelExpr()) {
-    if (FnAST->codegen()) {
+    if (FnAST->codegen(TheModule_rawptr, "__toplevel_expr")) {
 
       // JIT the module containing the anonymous expression, keeping a handle so
       // we can free it later.
-      auto H = TheJIT->addModule(std::move(TheModule));
-      InitializeModuleAndPassManager();
+      auto H = TheJIT->addModule(std::unique_ptr<Module>(TheModule_rawptr));
 
       // Search the JIT for the __anon_expr symbol.
       auto ExprSymbol = TheJIT->findSymbol("__toplevel_expr");
