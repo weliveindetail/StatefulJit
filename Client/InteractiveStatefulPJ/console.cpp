@@ -78,14 +78,14 @@ static void MainLoop() {
   while (1) {
     fprintf(stderr, "ready> ");
     switch (CurTok) {
-      case tok_eof:
-        return;
-      case ';': // ignore top-level semicolons.
-        getNextToken();
-        break;
-      default:
-        HandleTopLevelExpression();
-        break;
+    case tok_eof:
+      return;
+    case ';': // ignore top-level semicolons.
+      getNextToken();
+      break;
+    default:
+      HandleTopLevelExpression();
+      break;
     }
   }
 }
@@ -105,7 +105,7 @@ int main() {
   BinopPrecedence['-'] = 20;
   BinopPrecedence['*'] = 40; // highest.
 
-  // Prime the first token.
+                             // Prime the first token.
   fprintf(stderr, "ready> ");
   getNextToken();
 
