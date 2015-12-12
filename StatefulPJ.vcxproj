@@ -168,7 +168,7 @@
     <ClInclude Include="KaleidoscopeJIT.h" />
     <ClInclude Include="Lexer.h" />
     <ClInclude Include="Parser.h" />
-    <ClInclude Include="TestStatefulPJHook.h" />
+    <ClInclude Include="StatefulPJ.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

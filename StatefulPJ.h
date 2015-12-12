@@ -7,7 +7,7 @@
 #include "Parser.h"
 
 using llvm::Module;
-using llvm::StringRef;
+using llvm::orc::JITSymbol;
 using llvm::orc::KaleidoscopeJIT;
 using llvm::legacy::FunctionPassManager;
 
@@ -60,31 +60,24 @@ static std::unique_ptr<FunctionPassManager> SetupPassManager(Module* module_rawp
   return fpm;
 }
 
-static double EvaluateTopLevelExpression(KaleidoscopeJIT& jit, std::string code) {
+static JITSymbol CompileTopLevelExpr(KaleidoscopeJIT& jit)
+{
   constexpr auto nameId = "__toplevel_expr";
+
   auto module_ptr = SetupModule("r" + moduleRevision++, jit);
   auto fpm_ptr = SetupPassManager(module_ptr.get());
-
-  SetupTestInput(code);
-  getNextToken();
 
   // eval top-level expression
   auto ast = ParseTopLevelExpr();
   assert(ast && "Parsing failed");
-  
+
   // generate code into anonymous function
   Function* toplevelFn = ast->codegen(module_ptr.get(), nameId);
-  assert(ast && "Code generation failed");
+  assert(toplevelFn && "Code generation failed");
 
   // JIT compile the owner module
   jit.addModule(std::move(module_ptr));
 
   // find JIT symbol for compiled function
-  auto jitSymbol = jit.findSymbol(nameId);
-
-  // get address and reinterpret as function pointer
-  double(*FP)() = (double(*)())(intptr_t)jitSymbol.getAddress();
-
-  // run function
-  return FP();
+  return jit.findSymbol(nameId);
 }
