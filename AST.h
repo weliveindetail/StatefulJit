@@ -6,9 +6,11 @@
 
 #include <llvm/IR/Value.h>
 #include <llvm/IR/Function.h>
+#include <llvm/IR/Module.h>
 
 using llvm::Value;
 using llvm::Function;
+using llvm::Module;
 
 // ----------------------------------------------------------------------------
 
@@ -79,11 +81,11 @@ public:
 // ----------------------------------------------------------------------------
 
 // Expression class for top-level function definition
-class TopLevelExprAST 
+class TopLevelExprAST
 {
   std::unique_ptr<ExprAST> Body;
 
 public:
   TopLevelExprAST(std::unique_ptr<ExprAST> Body) : Body(std::move(Body)) {}
-  Function *codegen();
+  Function *codegen(Module* module_rawptr, std::string nameId);
 };

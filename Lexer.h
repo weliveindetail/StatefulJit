@@ -2,6 +2,8 @@
 
 #include <string>
 
+static int LastChar = ' ';
+
 // The lexer returns tokens [0-255] if it is an unknown character, otherwise one
 // of these for known things.
 enum Token {
@@ -19,18 +21,38 @@ enum Token {
 static std::string IdentifierStr; // Filled in if tok_identifier
 static double NumVal;             // Filled in if tok_number
 
-/// gettok - Return the next token from standard input.
-static int gettok() {
-  static int LastChar = ' ';
+static std::string testInput;     // code provided by unit test
+static int testInputReadPos;
 
+static void SetupTestInput(std::string code) {
+  assert(!code.empty() && "Test input string must not be empty");
+
+  testInput = std::move(code);
+  testInputReadPos = 0;
+  LastChar = ' ';
+}
+
+/// advance - get next char from input
+static char advance() {
+  if (testInput.empty())
+    return getchar();
+
+  if (testInputReadPos >= testInput.size())
+    return EOF;
+
+  return testInput.at(testInputReadPos++);
+}
+
+/// gettok - Return the next token
+static int gettok() {
   // Skip any whitespace.
   while (isspace(LastChar))
-    LastChar = getchar();
+    LastChar = advance();
 
   if (isalpha(LastChar)) { // identifier: [a-zA-Z][a-zA-Z0-9]*
     IdentifierStr = LastChar;
 
-    while (isalnum((LastChar = getchar())))
+    while (isalnum((LastChar = advance())))
       IdentifierStr += LastChar;
 
     if (IdentifierStr == "in")
@@ -46,7 +68,7 @@ static int gettok() {
     std::string NumStr;
     do {
       NumStr += LastChar;
-      LastChar = getchar();
+      LastChar = advance();
     } while (isdigit(LastChar) || LastChar == '.');
 
     NumVal = strtod(NumStr.c_str(), nullptr);
@@ -59,6 +81,6 @@ static int gettok() {
 
   // Otherwise, just return the character as its ascii value.
   int ThisChar = LastChar;
-  LastChar = getchar();
+  LastChar = advance();
   return ThisChar;
 }

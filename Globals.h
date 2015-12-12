@@ -20,11 +20,9 @@ using llvm::AllocaInst;
 using llvm::orc::KaleidoscopeJIT;
 using llvm::legacy::FunctionPassManager;
 
-static std::unique_ptr<Module> TheModule;
+static Module* TheModule_rawptr;
 static IRBuilder<> Builder(llvm::getGlobalContext());
 static std::map<std::string, AllocaInst *> NamedValues;
-static std::unique_ptr<FunctionPassManager> TheFPM;
-static std::unique_ptr<KaleidoscopeJIT> TheJIT;
 
 /// Error* - These are little helper functions for error handling.
 inline std::unique_ptr<ExprAST> Error(const char *Str) {
@@ -44,7 +42,7 @@ inline Value *ErrorV(const char *Str) {
 
 inline Function *getFunction(std::string Name) {
   // First, see if the function has already been added to the current module.
-  if (auto *F = TheModule->getFunction(Name))
+  if (auto *F = TheModule_rawptr->getFunction(Name))
     return F;
 
   // If no existing prototype exists, return null.

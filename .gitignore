@@ -1,5 +1,6 @@
 /Debug/
 /x64/
 /.vs/
-/StatefulPJ.sdf
-/StatefulPJ.VC.opendb
+*.sdf
+*.VC.opendb
+*.vcxproj.user
