@@ -24,7 +24,7 @@ public:
     llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
   }
 
-  TargetMachine &getTargetMachine() { return *TM; }
+  const TargetMachine &getTargetMachine() const { return *TM; }
 
   ModuleHandleT addModule(std::unique_ptr<Module> M) {
     // We need a memory manager to allocate memory and resolve symbols for this
@@ -49,6 +49,13 @@ public:
     ModuleHandles.erase(
         std::find(ModuleHandles.begin(), ModuleHandles.end(), H));
     CompileLayer.removeModuleSet(H);
+  }
+
+  void clearModules() {
+    for (auto& H : ModuleHandles)
+      CompileLayer.removeModuleSet(H);
+
+    ModuleHandles.clear();
   }
 
   JITSymbol findSymbol(const std::string Name) {
