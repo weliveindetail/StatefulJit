@@ -23,8 +23,6 @@ using llvm::legacy::FunctionPassManager;
 static Module* TheModule_rawptr;
 static IRBuilder<> Builder(llvm::getGlobalContext());
 static std::map<std::string, AllocaInst *> NamedValues;
-static std::unique_ptr<FunctionPassManager> TheFPM;
-static std::unique_ptr<KaleidoscopeJIT> TheJIT;
 
 /// Error* - These are little helper functions for error handling.
 inline std::unique_ptr<ExprAST> Error(const char *Str) {
