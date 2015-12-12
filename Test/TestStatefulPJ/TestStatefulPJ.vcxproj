@@ -118,7 +118,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>..\gtest\lib\gtest.lib;..\gtest\lib\gtest_main.lib;..\..\x64\Debug\StatefulPJ.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\gtest\lib\gtest.lib;..\..\x64\Debug\StatefulPJ.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ProjectReference>
       <UseLibraryDependencyInputs>true</UseLibraryDependencyInputs>
