@@ -74,6 +74,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -158,17 +159,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Codegen.cpp" />
-    <ClCompile Include="Parser.cpp" />
+    <ClInclude Include="src\AST.h" />
+    <ClInclude Include="src\Codegen.h" />
+    <ClInclude Include="src\Globals.h" />
+    <ClInclude Include="src\KaleidoscopeJIT.h" />
+    <ClInclude Include="src\Lexer.h" />
+    <ClInclude Include="src\Parser.h" />
+    <ClInclude Include="StatefulPJ.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="AST.h" />
-    <ClInclude Include="Codegen.h" />
-    <ClInclude Include="Globals.h" />
-    <ClInclude Include="KaleidoscopeJIT.h" />
-    <ClInclude Include="Lexer.h" />
-    <ClInclude Include="Parser.h" />
-    <ClInclude Include="StatefulPJ.h" />
+    <ClCompile Include="src\Codegen.cpp" />
+    <ClCompile Include="src\Parser.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -30,13 +30,13 @@ static double Eval(KaleidoscopeJIT& jit, std::string code)
 
 // ----------------------------------------------------------------------------
 
-TEST(testStatefulPJ, Basics)
+TEST(StatelessEvaluation, Basics)
 {
   StaticInit();
   auto jit = SetupJit();
   EXPECT_EQ(0.0, Eval(*jit, "var a in a;"));
   EXPECT_EQ(1.0, Eval(*jit, "var a=1 in a;"));
-  EXPECT_EQ(2.0, Eval(*jit, "var a=1, b=2 in b;"));
+  EXPECT_EQ(2.0, Eval(*jit, "var a=3, b=1 in a-b;"));
 }
 
 // ----------------------------------------------------------------------------

@@ -4,7 +4,7 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Transforms/Scalar.h>
 
-#include "Parser.h"
+#include "src/Parser.h"
 
 using llvm::Module;
 using llvm::orc::JITSymbol;
