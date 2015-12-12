@@ -11,11 +11,11 @@ using llvm::legacy::FunctionPassManager;
 
 static void InitializeModuleAndPassManager() {
   // Open a new module.
-  TheModule = llvm::make_unique<Module>("my cool jit", llvm::getGlobalContext());
+  TheModule = std::make_unique<Module>("my cool jit", llvm::getGlobalContext());
   TheModule->setDataLayout(TheJIT->getTargetMachine().createDataLayout());
 
   // Create a new pass manager attached to it.
-  TheFPM = llvm::make_unique<FunctionPassManager>(TheModule.get());
+  TheFPM = std::make_unique<FunctionPassManager>(TheModule.get());
 
   // Do simple "peephole" optimizations and bit-twiddling optzns.
   TheFPM->add(llvm::createInstructionCombiningPass());

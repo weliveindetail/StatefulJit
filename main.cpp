@@ -1,18 +1,11 @@
-#include <llvm/ADT/STLExtras.h>
 #include <llvm/Analysis/Passes.h>
-#include <llvm/IR/IRBuilder.h>
-#include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
-#include <llvm/IR/Verifier.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Transforms/Scalar.h>
 
 #include <cctype>
 #include <cstdio>
-#include <map>
-#include <string>
-#include <vector>
 
 #include "Globals.h"
 #include "AST.h"
@@ -22,13 +15,15 @@ using llvm::Module;
 using llvm::orc::KaleidoscopeJIT;
 using llvm::legacy::FunctionPassManager;
 
+// ----------------------------------------------------------------------------
+
 static void InitializeModuleAndPassManager() {
   // Open a new module.
-  TheModule = llvm::make_unique<Module>("my cool jit", llvm::getGlobalContext());
+  TheModule = std::make_unique<Module>("my cool jit", llvm::getGlobalContext());
   TheModule->setDataLayout(TheJIT->getTargetMachine().createDataLayout());
 
   // Create a new pass manager attached to it.
-  TheFPM = llvm::make_unique<FunctionPassManager>(TheModule.get());
+  TheFPM = std::make_unique<FunctionPassManager>(TheModule.get());
 
   // Do simple "peephole" optimizations and bit-twiddling optzns.
   TheFPM->add(llvm::createInstructionCombiningPass());
@@ -41,6 +36,8 @@ static void InitializeModuleAndPassManager() {
 
   TheFPM->doInitialization();
 }
+
+// ----------------------------------------------------------------------------
 
 static void HandleTopLevelExpression() {
   // Evaluate a top-level expression into an anonymous function.
@@ -71,6 +68,8 @@ static void HandleTopLevelExpression() {
   }
 }
 
+// ----------------------------------------------------------------------------
+
 /// top ::= definition | external | expression | ';'
 static void MainLoop() {
   while (1) {
@@ -88,9 +87,7 @@ static void MainLoop() {
   }
 }
 
-//===----------------------------------------------------------------------===//
-// Main driver code.
-//===----------------------------------------------------------------------===//
+// ----------------------------------------------------------------------------
 
 int main() {
   llvm::InitializeNativeTarget();
@@ -109,7 +106,7 @@ int main() {
   fprintf(stderr, "ready> ");
   getNextToken();
 
-  TheJIT = llvm::make_unique<KaleidoscopeJIT>();
+  TheJIT = std::make_unique<KaleidoscopeJIT>();
 
   InitializeModuleAndPassManager();
 
