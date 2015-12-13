@@ -5,7 +5,7 @@
 #include <llvm/Transforms/Scalar.h>
 
 #include "src/Parser.h"
-#include "src/KaleidoscopeJIT.h"
+#include "src/StatelessJit.h"
 
 using llvm::Module;
 using llvm::orc::JITSymbol;

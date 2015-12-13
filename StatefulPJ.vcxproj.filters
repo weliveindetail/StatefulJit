@@ -23,13 +23,13 @@
     <ClInclude Include="src\Globals.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\KaleidoscopeJIT.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\Lexer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\Parser.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\StatelessJit.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
