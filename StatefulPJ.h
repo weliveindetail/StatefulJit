@@ -5,24 +5,25 @@
 #include <llvm/Transforms/Scalar.h>
 
 #include "src/Parser.h"
+#include "src/KaleidoscopeJIT.h"
 
 using llvm::Module;
 using llvm::orc::JITSymbol;
-using llvm::orc::KaleidoscopeJIT;
+using llvm::orc::StatelessJit;
 using llvm::legacy::FunctionPassManager;
 
 static int moduleRevision = 0;
 
-static void DeleteJitHistory(KaleidoscopeJIT& jit) 
+static void DeleteJitHistory(StatelessJit& jit)
 {
   moduleRevision = 0;
   jit.clearModules();
 }
 
-static std::unique_ptr<KaleidoscopeJIT> SetupJit()
+static std::unique_ptr<StatelessJit> SetupStatelessJit()
 {
   moduleRevision = 0;
-  return std::make_unique<KaleidoscopeJIT>();
+  return std::make_unique<StatelessJit>();
 }
 
 static void StaticInit()
@@ -39,7 +40,7 @@ static void StaticInit()
   BinopPrecedence['*'] = 40; // highest
 }
 
-static std::unique_ptr<Module> SetupModule(std::string moduleId, const KaleidoscopeJIT& jit)
+static std::unique_ptr<Module> SetupModule(std::string moduleId, const StatelessJit& jit)
 {
   auto module = std::make_unique<Module>(moduleId, llvm::getGlobalContext());
   module->setDataLayout(jit.getTargetMachine().createDataLayout());
@@ -60,7 +61,7 @@ static std::unique_ptr<FunctionPassManager> SetupPassManager(Module* module_rawp
   return fpm;
 }
 
-static JITSymbol CompileTopLevelExpr(KaleidoscopeJIT& jit)
+static JITSymbol CompileTopLevelExpr(StatelessJit& jit)
 {
   constexpr auto nameId = "__toplevel_expr";
 

@@ -12,59 +12,91 @@
 namespace llvm {
 namespace orc {
 
-class KaleidoscopeJIT {
-public:
-  typedef ObjectLinkingLayer<> ObjLayerT;
-  typedef IRCompileLayer<ObjLayerT> CompileLayerT;
-  typedef CompileLayerT::ModuleSetHandleT ModuleHandleT;
+// ----------------------------------------------------------------------------
 
-  KaleidoscopeJIT()
-      : TM(EngineBuilder().selectTarget()), DL(TM->createDataLayout()),
-        CompileLayer(ObjectLayer, SimpleCompiler(*TM)) {
+class StatelessJit
+{
+public:
+  using ObjectLayer_t = ObjectLinkingLayer<>;
+  using CompileLayer_t = IRCompileLayer<ObjectLayer_t>;
+  using ModuleHandle_t = CompileLayer_t::ModuleSetHandleT;
+
+  StatelessJit() : TM(EngineBuilder().selectTarget())
+                 , DL(TM->createDataLayout())
+                 , CompileLayer(ObjectLayer, SimpleCompiler(*TM)) 
+  {
     llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
   }
 
   const TargetMachine &getTargetMachine() const { return *TM; }
 
-  ModuleHandleT addModule(std::unique_ptr<Module> M) {
+  auto createSymbolResolver()
+  {
     // We need a memory manager to allocate memory and resolve symbols for this
-    // new module. Create one that resolves symbols by looking back into the
-    // JIT.
-    auto Resolver = createLambdaResolver(
-        [&](const std::string &Name) {
-          if (auto Sym = findMangledSymbol(Name))
-            return RuntimeDyld::SymbolInfo(Sym.getAddress(), Sym.getFlags());
-          return RuntimeDyld::SymbolInfo(nullptr);
-        },
-        [](const std::string &S) { return nullptr; });
-    auto H = CompileLayer.addModuleSet(singletonSet(std::move(M)),
-                                       make_unique<SectionMemoryManager>(),
-                                       std::move(Resolver));
+    // new module. Create one that resolves symbols by looking back into the JIT.
+    auto externalLookup_f = [&](const std::string &Name) {
+      if (auto Sym = findMangledSymbol(Name))
+        return RuntimeDyld::SymbolInfo(Sym.getAddress(), Sym.getFlags());
 
-    ModuleHandles.push_back(H);
-    return H;
+      return RuntimeDyld::SymbolInfo(nullptr);
+    };
+
+    auto dylibLookup_f = [](const std::string &S) {
+      return nullptr;
+    };
+
+    return createLambdaResolver(externalLookup_f, dylibLookup_f);
   }
 
-  void removeModule(ModuleHandleT H) {
-    ModuleHandles.erase(
-        std::find(ModuleHandles.begin(), ModuleHandles.end(), H));
-    CompileLayer.removeModuleSet(H);
+  template<class SymbolResolver_t>
+  ModuleHandle_t submitModule(std::unique_ptr<Module> module, SymbolResolver_t resolver)
+  {
+    std::vector<decltype(module)> singleItemSet;
+    singleItemSet.push_back(std::move(module));
+
+    ModuleHandle_t handle =
+      CompileLayer.addModuleSet(
+        std::move(singleItemSet),
+        make_unique<SectionMemoryManager>(),
+        std::move(resolver));
+
+    ModuleHandles.push_back(handle);
+    return handle;
   }
 
-  void clearModules() {
-    for (auto& H : ModuleHandles)
-      CompileLayer.removeModuleSet(H);
+  ModuleHandle_t addModule(std::unique_ptr<Module> module)
+  {
+    auto symbolResolver = createSymbolResolver();
+    auto moduleHandle = submitModule(std::move(module), std::move(symbolResolver));
+
+    return moduleHandle;
+  }
+
+  void removeModule(ModuleHandle_t handle) 
+  {
+    auto handle_it = 
+      std::find(ModuleHandles.begin(), ModuleHandles.end(), handle);
+
+    ModuleHandles.erase(handle_it);
+    CompileLayer.removeModuleSet(handle);
+  }
+
+  void clearModules() 
+  {
+    for (auto& handle : ModuleHandles)
+      CompileLayer.removeModuleSet(handle);
 
     ModuleHandles.clear();
   }
 
-  JITSymbol findSymbol(const std::string Name) {
+  JITSymbol findSymbol(const std::string Name) 
+  {
     return findMangledSymbol(mangle(Name));
   }
 
 private:
-
-  std::string mangle(const std::string &Name) {
+  std::string mangle(const std::string &Name) 
+  {
     std::string MangledName;
     {
       raw_string_ostream MangledNameStream(MangledName);
@@ -73,19 +105,16 @@ private:
     return MangledName;
   }
 
-  template <typename T> static std::vector<T> singletonSet(T t) {
-    std::vector<T> Vec;
-    Vec.push_back(std::move(t));
-    return Vec;
-  }
+  JITSymbol findMangledSymbol(const std::string &Name)
+  {
+    bool exportedSymbolsOnly = false;
 
-  JITSymbol findMangledSymbol(const std::string &Name) {
     // Search modules in reverse order: from last added to first added.
     // This is the opposite of the usual search order for dlsym, but makes more
     // sense in a REPL where we want to bind to the newest available definition.
-    for (auto H : make_range(ModuleHandles.rbegin(), ModuleHandles.rend()))
-      if (auto Sym = CompileLayer.findSymbolIn(H, Name, false))
-        return Sym;
+    for (auto modHandle : make_range(ModuleHandles.rbegin(), ModuleHandles.rend()))
+      if (auto symbol = CompileLayer.findSymbolIn(modHandle, Name, exportedSymbolsOnly))
+        return symbol;
 
     // If we can't find the symbol in the JIT, try looking in the host process.
     if (auto SymAddr = RTDyldMemoryManager::getSymbolAddressInProcess(Name))
@@ -94,12 +123,14 @@ private:
     return nullptr;
   }
 
-  std::unique_ptr<TargetMachine> TM;
   const DataLayout DL;
-  ObjLayerT ObjectLayer;
-  CompileLayerT CompileLayer;
-  std::vector<ModuleHandleT> ModuleHandles;
+  ObjectLayer_t ObjectLayer;
+  CompileLayer_t CompileLayer;
+  std::vector<ModuleHandle_t> ModuleHandles;
+  std::unique_ptr<TargetMachine> TM;
 };
 
-} // End namespace orc.
-} // End namespace llvm
+// ----------------------------------------------------------------------------
+
+}
+}

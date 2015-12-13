@@ -10,12 +10,12 @@
 #include "StatefulPJ.h"
 
 using llvm::Module;
-using llvm::orc::KaleidoscopeJIT;
+using llvm::orc::StatelessJit;
 using llvm::legacy::FunctionPassManager;
 
 // ----------------------------------------------------------------------------
 
-static void HandleTopLevelExpression(KaleidoscopeJIT& jit) 
+static void HandleTopLevelExpression(StatelessJit& jit)
 {
   // collect user input, parse AST and compile top-level function
   auto jitSymbol = CompileTopLevelExpr(jit);
@@ -32,7 +32,7 @@ static void HandleTopLevelExpression(KaleidoscopeJIT& jit)
 /// top ::= definition | expression | ';'
 static void MainLoop() 
 {
-  KaleidoscopeJIT jit;
+  StatelessJit jit;
 
   fprintf(stderr, "ready> ");
   getNextToken();
