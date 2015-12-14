@@ -3,6 +3,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Transforms/Scalar.h>
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
 
 #include "src/Parser.h"
 #include "src/KaleidoscopeJIT.h"
@@ -23,7 +24,7 @@ static void DeleteJitHistory(StatelessJit& jit)
 static std::unique_ptr<StatelessJit> SetupStatelessJit()
 {
   moduleRevision = 0;
-  return std::make_unique<StatelessJit>();
+  return std::make_unique<StatelessJit>(llvm::EngineBuilder().selectTarget());
 }
 
 static void StaticInit()

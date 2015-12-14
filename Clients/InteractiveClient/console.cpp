@@ -3,6 +3,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Transforms/Scalar.h>
+#include "llvm/ExecutionEngine/ExecutionEngine.h"
 
 #include <cctype>
 #include <cstdio>
@@ -32,7 +33,8 @@ static void HandleTopLevelExpression(StatelessJit& jit)
 /// top ::= definition | expression | ';'
 static void MainLoop() 
 {
-  StatelessJit jit;
+  auto targetMachine = llvm::EngineBuilder().selectTarget();
+  StatelessJit jit(targetMachine);
 
   fprintf(stderr, "ready> ");
   getNextToken();

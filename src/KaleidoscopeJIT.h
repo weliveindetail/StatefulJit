@@ -1,6 +1,5 @@
 #pragma once
 
-#include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/RTDyldMemoryManager.h"
 #include "llvm/ExecutionEngine/Orc/CompileUtils.h"
 #include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
@@ -21,10 +20,11 @@ public:
   using CompileLayer_t = IRCompileLayer<ObjectLayer_t>;
   using ModuleHandle_t = CompileLayer_t::ModuleSetHandleT;
 
-  StatelessJit() : TM(EngineBuilder().selectTarget())
-                 , DL(TM->createDataLayout())
-                 , CompileLayer(ObjectLayer, SimpleCompiler(*TM)) 
+  StatelessJit(TargetMachine* targetMachine)
+    : DL(targetMachine->createDataLayout())
+    , CompileLayer(ObjectLayer, SimpleCompiler(*targetMachine))
   {
+    TM = std::unique_ptr<TargetMachine>(targetMachine);
     llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
   }
 
@@ -126,8 +126,8 @@ private:
   const DataLayout DL;
   ObjectLayer_t ObjectLayer;
   CompileLayer_t CompileLayer;
-  std::vector<ModuleHandle_t> ModuleHandles;
   std::unique_ptr<TargetMachine> TM;
+  std::vector<ModuleHandle_t> ModuleHandles;
 };
 
 // ----------------------------------------------------------------------------
