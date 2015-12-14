@@ -17,9 +17,6 @@ using llvm::Function;
 using llvm::IRBuilder;
 using llvm::AllocaInst;
 
-static IRBuilder<> Builder(llvm::getGlobalContext());
-static std::map<std::string, AllocaInst *> NamedValues;
-
 /// Error* - These are little helper functions for error handling.
 inline std::unique_ptr<ExprAST> Error(const char *Str) {
   fprintf(stderr, "Error: %s\n", Str);

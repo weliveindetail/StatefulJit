@@ -9,6 +9,9 @@
 
 using namespace llvm;
 
+static IRBuilder<> Builder(getGlobalContext());
+static std::map<std::string, AllocaInst *> NamedValues;
+
 Value *NumberExprAST::codegen() {
   return ConstantFP::get(getGlobalContext(), APFloat(Val));
 }
