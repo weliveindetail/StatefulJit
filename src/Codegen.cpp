@@ -118,13 +118,12 @@ Value *VarExprAST::codegen() {
   return BodyVal;
 }
 
-Function *TopLevelExprAST::codegen(Module* module_rawptr, std::string nameId) {
-  TheModule_rawptr = module_rawptr;
-
+Function *TopLevelExprAST::codegen(Module* module_rawptr, std::string nameId) 
+{
   // the top-level function takes no arguments and returns a double
   Function *TheFunction = Function::Create(
     FunctionType::get(Type::getDoubleTy(getGlobalContext()), false),
-    Function::ExternalLinkage, nameId, TheModule_rawptr);
+    Function::ExternalLinkage, nameId, module_rawptr);
 
   // Create a new basic block to start insertion into.
   BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", TheFunction);
