@@ -1,47 +1,47 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Source Files">
+    <Filter Include="Implementation">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
-    <Filter Include="Header Files">
+    <Filter Include="API">
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="StatefulPJ.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\AST.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Codegen.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Globals.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Lexer.h">
-      <Filter>Header Files</Filter>
+      <Filter>API</Filter>
     </ClInclude>
     <ClInclude Include="src\Parser.h">
-      <Filter>Header Files</Filter>
+      <Filter>Implementation</Filter>
+    </ClInclude>
+    <ClInclude Include="src\AST.h">
+      <Filter>Implementation</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Codegen.h">
+      <Filter>Implementation</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Globals.h">
+      <Filter>Implementation</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Lexer.h">
+      <Filter>Implementation</Filter>
     </ClInclude>
     <ClInclude Include="src\StatelessJit.h">
-      <Filter>Header Files</Filter>
+      <Filter>Implementation</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Codegen.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Implementation</Filter>
     </ClCompile>
     <ClCompile Include="src\Parser.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Implementation</Filter>
     </ClCompile>
     <ClCompile Include="src\StatelessJit.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Implementation</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
