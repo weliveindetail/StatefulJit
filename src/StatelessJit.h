@@ -15,7 +15,7 @@ class StatelessJit
   using ModuleHandle_t = CompileLayer_t::ModuleSetHandleT;
 
 public:
-  StatelessJit();
+  StatelessJit(TargetMachine *targetMachine_rawptr);
 
   // avoid copying
   StatelessJit(const StatelessJit& tmpl) = delete;

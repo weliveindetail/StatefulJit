@@ -1,4 +1,5 @@
 #include <llvm/Analysis/Passes.h>
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/TargetSelect.h>
@@ -32,7 +33,7 @@ static void HandleTopLevelExpression(StatelessJit& jit)
 /// top ::= definition | expression | ';'
 static void MainLoop() 
 {
-  StatelessJit jit;
+  StatelessJit jit(llvm::EngineBuilder().selectTarget());
 
   fprintf(stderr, "ready> ");
   getNextToken();

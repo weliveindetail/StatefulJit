@@ -1,4 +1,5 @@
 #include <llvm/Analysis/Passes.h>
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/TargetSelect.h>
@@ -23,7 +24,8 @@ static void DeleteJitHistory(StatelessJit& jit)
 static std::unique_ptr<StatelessJit> SetupStatelessJit()
 {
   moduleRevision = 0;
-  return std::make_unique<StatelessJit>();
+  auto* targetMachine_rawptr = llvm::EngineBuilder().selectTarget();
+  return std::make_unique<StatelessJit>(targetMachine_rawptr);
 }
 
 static void StaticInit()

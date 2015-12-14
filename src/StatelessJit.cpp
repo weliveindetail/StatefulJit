@@ -1,6 +1,5 @@
 #include "StatelessJit.h"
 
-#include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/RTDyldMemoryManager.h"
 #include "llvm/ExecutionEngine/Orc/CompileUtils.h"
 #include "llvm/ExecutionEngine/Orc/LambdaResolver.h"
@@ -14,10 +13,10 @@ namespace llvm {
 
 // ----------------------------------------------------------------------------
 
-StatelessJit::StatelessJit()
-  : TM(EngineBuilder().selectTarget())
-  , DL(TM->createDataLayout())
-  , CompileLayer(ObjectLayer, SimpleCompiler(*TM))
+StatelessJit::StatelessJit(TargetMachine *targetMachine_rawptr)
+  : TM(targetMachine_rawptr)
+  , DL(targetMachine_rawptr->createDataLayout())
+  , CompileLayer(ObjectLayer, SimpleCompiler(*targetMachine_rawptr))
 {
   llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
 }
