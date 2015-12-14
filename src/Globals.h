@@ -11,14 +11,11 @@
 #include <llvm/IR/LegacyPassManager.h>
 
 #include "AST.h"
-#include "KaleidoscopeJIT.h"
 
 using llvm::Module;
 using llvm::Function;
 using llvm::IRBuilder;
 using llvm::AllocaInst;
-using llvm::orc::KaleidoscopeJIT;
-using llvm::legacy::FunctionPassManager;
 
 static Module* TheModule_rawptr;
 static IRBuilder<> Builder(llvm::getGlobalContext());

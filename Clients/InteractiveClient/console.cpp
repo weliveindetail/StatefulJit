@@ -1,4 +1,5 @@
 #include <llvm/Analysis/Passes.h>
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/TargetSelect.h>
@@ -10,12 +11,12 @@
 #include "StatefulPJ.h"
 
 using llvm::Module;
-using llvm::orc::KaleidoscopeJIT;
+using llvm::orc::StatelessJit;
 using llvm::legacy::FunctionPassManager;
 
 // ----------------------------------------------------------------------------
 
-static void HandleTopLevelExpression(KaleidoscopeJIT& jit) 
+static void HandleTopLevelExpression(StatelessJit& jit)
 {
   // collect user input, parse AST and compile top-level function
   auto jitSymbol = CompileTopLevelExpr(jit);
@@ -32,7 +33,7 @@ static void HandleTopLevelExpression(KaleidoscopeJIT& jit)
 /// top ::= definition | expression | ';'
 static void MainLoop() 
 {
-  KaleidoscopeJIT jit;
+  StatelessJit jit(llvm::EngineBuilder().selectTarget());
 
   fprintf(stderr, "ready> ");
   getNextToken();

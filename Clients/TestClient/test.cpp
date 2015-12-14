@@ -6,11 +6,11 @@
 #include "StatefulPJ.h"
 
 using llvm::Module;
-using llvm::orc::KaleidoscopeJIT;
+using llvm::orc::StatelessJit;
 
 // ----------------------------------------------------------------------------
 
-static double Eval(KaleidoscopeJIT& jit, std::string code)
+static double Eval(StatelessJit& jit, std::string code)
 {
   constexpr auto nameId = "__toplevel_expr";
 
@@ -33,7 +33,7 @@ static double Eval(KaleidoscopeJIT& jit, std::string code)
 TEST(StatelessEvaluation, Basics)
 {
   StaticInit();
-  auto jit = SetupJit();
+  auto jit = SetupStatelessJit();
   EXPECT_EQ(0.0, Eval(*jit, "var a in a;"));
   EXPECT_EQ(1.0, Eval(*jit, "var a=1 in a;"));
   EXPECT_EQ(2.0, Eval(*jit, "var a=3, b=1 in a-b;"));

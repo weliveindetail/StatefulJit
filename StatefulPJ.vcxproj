@@ -162,7 +162,7 @@
     <ClInclude Include="src\AST.h" />
     <ClInclude Include="src\Codegen.h" />
     <ClInclude Include="src\Globals.h" />
-    <ClInclude Include="src\KaleidoscopeJIT.h" />
+    <ClInclude Include="src\StatelessJit.h" />
     <ClInclude Include="src\Lexer.h" />
     <ClInclude Include="src\Parser.h" />
     <ClInclude Include="StatefulPJ.h" />
@@ -170,6 +170,7 @@
   <ItemGroup>
     <ClCompile Include="src\Codegen.cpp" />
     <ClCompile Include="src\Parser.cpp" />
+    <ClCompile Include="src\StatelessJit.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
