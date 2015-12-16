@@ -10,7 +10,7 @@
 using namespace llvm;
 
 static IRBuilder<> Builder(getGlobalContext());
-static std::map<std::string, AllocaInst *> NamedValues;
+static std::map<std::string, Value *> NamedValues;
 
 Value *NumberExprAST::codegen() {
   return ConstantFP::get(getGlobalContext(), APFloat(Val));
@@ -72,19 +72,19 @@ Value *BinaryExprAST::codegen() {
   }
 }
 
-Value *VarExprAST::codegen() {
+Value *VarExprAST::codegen()
+{
+  auto& C = getGlobalContext();
   Function *TheFunction = Builder.GetInsertBlock()->getParent();
 
-  // Register all variables and emit their initializer.
-  for (unsigned i = 0, e = VarNames.size(); i != e; ++i) {
+  // Register all variables and emit their initializer
+  for (unsigned i = 0, e = VarNames.size(); i != e; ++i)
+  {
     const std::string &VarName = VarNames[i].first;
     ExprAST *Init = VarNames[i].second.get();
 
-    // Emit the initializer before adding the variable to scope, this prevents
-    // the initializer from referencing the variable itself, and permits stuff
-    // like this:
-    //  var a = 1 in
-    //    var a = a in ...   # refers to outer 'a'.
+    // prevent self-initialization by emitting the 
+    // initializer before adding the variable to scope
     Value *InitVal;
     if (Init) {
       InitVal = Init->codegen();
@@ -92,14 +92,25 @@ Value *VarExprAST::codegen() {
         return nullptr;
     }
     else { // If not specified, use 0.0.
-      InitVal = ConstantFP::get(getGlobalContext(), APFloat(0.0));
+      InitVal = ConstantFP::get(C, APFloat(0.0));
     }
 
-    AllocaInst *Alloca = CreateEntryBlockAlloca(TheFunction, VarName);
-    Builder.CreateStore(InitVal, Alloca);
+    BasicBlock* BB = Builder.GetInsertBlock();
+    Module* M = BB->getParent()->getParent();
 
-    // Remember this binding.
-    NamedValues[VarName] = Alloca;
+    Type* intTy = Type::getInt64Ty(C);
+    Type* bytePtrTy = Type::getInt8PtrTy(C);
+    Value* mallocFn = M->getOrInsertFunction("malloc", bytePtrTy, intTy, nullptr);
+
+    Constant* dataSize = ConstantExpr::getSizeOf(Type::getDoubleTy(C));
+    CallInst* mallocCall = CallInst::Create(mallocFn, dataSize, VarName + "_void_ptr");
+    BB->getInstList().push_back(mallocCall);
+
+    Value* void_ptr = mallocCall;
+    Value* double_ptr = Builder.CreateBitCast(void_ptr, Type::getDoublePtrTy(C), VarName + "_double_ptr");
+    Builder.CreateStore(InitVal, double_ptr);
+
+    NamedValues[VarName] = double_ptr;
   }
 
   // Codegen the body and return its computation
@@ -108,13 +119,15 @@ Value *VarExprAST::codegen() {
 
 Function *TopLevelExprAST::codegen(Module* module_rawptr, std::string nameId) 
 {
+  auto& C = getGlobalContext();
+
   // the top-level function takes no arguments and returns a double
   Function *TheFunction = Function::Create(
-    FunctionType::get(Type::getDoubleTy(getGlobalContext()), false),
+    FunctionType::get(Type::getDoubleTy(C), false),
     Function::ExternalLinkage, nameId, module_rawptr);
 
   // Create a new basic block to start insertion into.
-  BasicBlock *BB = BasicBlock::Create(getGlobalContext(), "entry", TheFunction);
+  BasicBlock *BB = BasicBlock::Create(C, "entry", TheFunction);
   Builder.SetInsertPoint(BB);
 
   Value *RetVal = Body->codegen();
