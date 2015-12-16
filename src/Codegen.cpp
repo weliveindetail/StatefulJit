@@ -73,8 +73,6 @@ Value *BinaryExprAST::codegen() {
 }
 
 Value *VarExprAST::codegen() {
-  std::vector<AllocaInst *> OldBindings;
-
   Function *TheFunction = Builder.GetInsertBlock()->getParent();
 
   // Register all variables and emit their initializer.
@@ -100,25 +98,12 @@ Value *VarExprAST::codegen() {
     AllocaInst *Alloca = CreateEntryBlockAlloca(TheFunction, VarName);
     Builder.CreateStore(InitVal, Alloca);
 
-    // Remember the old variable binding so that we can restore the binding when
-    // we unrecurse.
-    OldBindings.push_back(NamedValues[VarName]);
-
     // Remember this binding.
     NamedValues[VarName] = Alloca;
   }
 
-  // Codegen the body, now that all vars are in scope.
-  Value *BodyVal = Body->codegen();
-  if (!BodyVal)
-    return nullptr;
-
-  // Pop all our variables from scope.
-  for (unsigned i = 0, e = VarNames.size(); i != e; ++i)
-    NamedValues[VarNames[i].first] = OldBindings[i];
-
-  // Return the body computation.
-  return BodyVal;
+  // Codegen the body and return its computation
+  return Body->codegen();
 }
 
 Function *TopLevelExprAST::codegen(Module* module_rawptr, std::string nameId) 
