@@ -78,6 +78,8 @@ static JITSymbol CompileTopLevelExpr(StatelessJit& jit)
   Function* toplevelFn = ast->codegen(module_ptr.get(), nameId);
   assert(toplevelFn && "Code generation failed");
 
+  toplevelFn->dump();
+
   // JIT compile the owner module
   jit.addModule(std::move(module_ptr));
 
