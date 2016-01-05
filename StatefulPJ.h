@@ -53,25 +53,11 @@ static std::unique_ptr<Module> SetupModule(std::string moduleId, const Stateless
   return module;
 }
 
-static std::unique_ptr<FunctionPassManager> SetupPassManager(Module* module_rawptr)
-{
-  auto fpm = std::make_unique<FunctionPassManager>(module_rawptr);
-
-  fpm->add(llvm::createInstructionCombiningPass()); // simple "peephole" and bit-twiddling optzns.
-  fpm->add(llvm::createReassociatePass());          // reassociate expressions
-  fpm->add(llvm::createGVNPass());                  // eliminate common sub-expressions
-  fpm->add(llvm::createCFGSimplificationPass());    // simplify control flow graph
-  fpm->doInitialization();
-
-  return fpm;
-}
-
 static JITSymbol CompileTopLevelExpr(StatelessJit& jit)
 {
   constexpr auto nameId = "__toplevel_expr";
 
   auto module_ptr = SetupModule("r" + moduleRevision++, jit);
-  auto fpm_ptr = SetupPassManager(module_ptr.get());
 
   // eval top-level expression
   auto topLevelAst = ParseTopLevelExpr();
