@@ -23,6 +23,40 @@ StatelessJit::StatelessJit(TargetMachine *targetMachine_rawptr)
 
 // ----------------------------------------------------------------------------
 
+int StatelessJit::getOrCreateStatefulVariable(std::string name)
+{
+  if (mapIdsByName.find(name) == mapIdsByName.end())
+  {
+    int newNameId = statefulVariableNextId++;
+
+    mapIdsByName[name] = newNameId;
+    mapMemLocationsById[newNameId] = nullptr;
+  }
+
+  return mapIdsByName.at(name);
+}
+
+bool StatelessJit::hasMemLocation(int varId)
+{
+  auto it = mapMemLocationsById.find(varId);
+  bool invalid = (it == mapMemLocationsById.end() || it->second == nullptr);
+
+  return !invalid;
+}
+
+void* StatelessJit::getMemLocation(int varId)
+{
+  assert(hasMemLocation(varId));
+  return mapMemLocationsById.at(varId);
+}
+
+void StatelessJit::submitMemLocation(int varId, void* ptr)
+{
+  mapMemLocationsById[varId] = ptr;
+}
+
+// ----------------------------------------------------------------------------
+
 auto StatelessJit::createSymbolResolver()
 {
   // We need a memory manager to allocate memory and resolve symbols for this
