@@ -6,11 +6,11 @@
 #include "StatefulPJ.h"
 
 using llvm::Module;
-using llvm::orc::StatelessJit;
+using llvm::orc::StatefulJit;
 
 // ----------------------------------------------------------------------------
 
-static double Eval(StatelessJit& jit, std::string code)
+static double Eval(StatefulJit& jit, std::string code)
 {
   constexpr auto nameId = "__toplevel_expr";
 
@@ -33,7 +33,7 @@ static double Eval(StatelessJit& jit, std::string code)
 TEST(StatefulEvaluation, SingleVariable)
 {
   StaticInit();
-  auto jit = SetupStatelessJit();
+  auto jit = SetupStatefulJit();
 
   EXPECT_EQ(0.0, Eval(*jit, "var a   in a;"));
   EXPECT_EQ(1.0, Eval(*jit, "var a=1 in a;"));
@@ -48,7 +48,7 @@ TEST(StatefulEvaluation, SingleVariable)
 TEST(StatefulEvaluation, MultiVariable)
 {
   StaticInit();
-  auto jit = SetupStatelessJit();
+  auto jit = SetupStatefulJit();
 
   EXPECT_EQ(1.0, Eval(*jit, "var a=1    in a;"));
   EXPECT_EQ(1.0, Eval(*jit, "var a, b   in a + b;"));

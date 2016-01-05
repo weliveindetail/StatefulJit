@@ -10,7 +10,7 @@
 
 namespace llvm {
   namespace orc {
-    class StatelessJit;
+    class StatefulJit;
   }
 };
 
@@ -99,7 +99,7 @@ public:
   }
 
   llvm::Function *codegen(
-    llvm::orc::StatelessJit& jit,
+    llvm::orc::StatefulJit& jit,
     llvm::Module* module_rawptr,
     std::string nameId);
 };

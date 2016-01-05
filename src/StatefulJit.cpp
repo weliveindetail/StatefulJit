@@ -1,4 +1,4 @@
-#include "StatelessJit.h"
+#include "StatefulJit.h"
 
 #include "llvm/ExecutionEngine/RTDyldMemoryManager.h"
 #include "llvm/ExecutionEngine/Orc/CompileUtils.h"
@@ -13,7 +13,7 @@ namespace llvm {
 
 // ----------------------------------------------------------------------------
 
-StatelessJit::StatelessJit(TargetMachine *targetMachine_rawptr)
+StatefulJit::StatefulJit(TargetMachine *targetMachine_rawptr)
   : TM(targetMachine_rawptr)
   , DL(targetMachine_rawptr->createDataLayout())
   , CompileLayer(ObjectLayer, SimpleCompiler(*targetMachine_rawptr))
@@ -24,7 +24,7 @@ StatelessJit::StatelessJit(TargetMachine *targetMachine_rawptr)
 
 // ----------------------------------------------------------------------------
 
-int StatelessJit::getOrCreateStatefulVariable(std::string name)
+int StatefulJit::getOrCreateStatefulVariable(std::string name)
 {
   if (mapIdsByName.find(name) == mapIdsByName.end())
   {
@@ -37,7 +37,7 @@ int StatelessJit::getOrCreateStatefulVariable(std::string name)
   return mapIdsByName.at(name);
 }
 
-bool StatelessJit::hasMemLocation(int varId)
+bool StatefulJit::hasMemLocation(int varId)
 {
   auto it = mapMemLocationsById.find(varId);
   bool invalid = (it == mapMemLocationsById.end() || it->second == nullptr);
@@ -45,27 +45,27 @@ bool StatelessJit::hasMemLocation(int varId)
   return !invalid;
 }
 
-void* StatelessJit::getMemLocation(int varId)
+void* StatefulJit::getMemLocation(int varId)
 {
   assert(hasMemLocation(varId));
   return mapMemLocationsById.at(varId);
 }
 
-void StatelessJit::submitMemLocation(int varId, void* ptr)
+void StatefulJit::submitMemLocation(int varId, void* ptr)
 {
   mapMemLocationsById[varId] = ptr;
 }
 
 // ----------------------------------------------------------------------------
 
-void StatelessJit::addGlobalMapping(StringRef Name, void* Addr)
+void StatefulJit::addGlobalMapping(StringRef Name, void* Addr)
 {
   MappingLayer.setGlobalMapping(mangle(Name), TargetAddress(Addr));
 }
 
 // ----------------------------------------------------------------------------
 
-auto StatelessJit::createSymbolResolver()
+auto StatefulJit::createSymbolResolver()
 {
   // We need a memory manager to allocate memory and resolve symbols for this
   // new module. Create one that resolves symbols by looking back into the JIT.
@@ -86,7 +86,7 @@ auto StatelessJit::createSymbolResolver()
 // ----------------------------------------------------------------------------
 
 template<class SymbolResolver_t>
-auto StatelessJit::submitModule(
+auto StatefulJit::submitModule(
   std::unique_ptr<Module> module,
   SymbolResolver_t resolver)
   -> ModuleHandle_t
@@ -106,14 +106,14 @@ auto StatelessJit::submitModule(
 
 // ----------------------------------------------------------------------------
 
-auto StatelessJit::findSymbol(const std::string name) -> JITSymbol
+auto StatefulJit::findSymbol(const std::string name) -> JITSymbol
 {
   return findMangledSymbol(mangle(name));
 }
 
 // ----------------------------------------------------------------------------
 
-auto StatelessJit::mangle(const std::string &name) -> std::string
+auto StatefulJit::mangle(const std::string &name) -> std::string
 {
   std::string MangledName;
   {
@@ -125,7 +125,7 @@ auto StatelessJit::mangle(const std::string &name) -> std::string
 
 // ----------------------------------------------------------------------------
 
-auto StatelessJit::findMangledSymbol(const std::string &name) -> JITSymbol
+auto StatefulJit::findMangledSymbol(const std::string &name) -> JITSymbol
 {
   bool exportedSymbolsOnly = false;
 
@@ -149,7 +149,7 @@ auto StatelessJit::findMangledSymbol(const std::string &name) -> JITSymbol
 
 // ----------------------------------------------------------------------------
 
-auto StatelessJit::addModule(
+auto StatefulJit::addModule(
   std::unique_ptr<Module> module)
   -> ModuleHandle_t
 {
@@ -161,7 +161,7 @@ auto StatelessJit::addModule(
 
 // ----------------------------------------------------------------------------
 
-void StatelessJit::removeModule(ModuleHandle_t handle)
+void StatefulJit::removeModule(ModuleHandle_t handle)
 {
   auto handle_it =
     std::find(ModuleHandles.begin(), ModuleHandles.end(), handle);
@@ -172,7 +172,7 @@ void StatelessJit::removeModule(ModuleHandle_t handle)
 
 // ----------------------------------------------------------------------------
 
-void StatelessJit::clearModules()
+void StatefulJit::clearModules()
 {
   for (auto& handle : ModuleHandles)
     CompileLayer.removeModuleSet(handle);

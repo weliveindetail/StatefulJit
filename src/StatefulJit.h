@@ -12,7 +12,7 @@ namespace llvm {
 
 // ----------------------------------------------------------------------------
 
-class StatelessJit
+class StatefulJit
 {
   using ObjectLayer_t = ObjectLinkingLayer<>;
   using MappingLayer_t = GlobalMappingLayer<ObjectLayer_t>;
@@ -20,11 +20,11 @@ class StatelessJit
   using ModuleHandle_t = CompileLayer_t::ModuleSetHandleT;
 
 public:
-  StatelessJit(TargetMachine *targetMachine_rawptr);
+  StatefulJit(TargetMachine *targetMachine_rawptr);
 
   // avoid copying
-  StatelessJit(const StatelessJit& tmpl) = delete;
-  StatelessJit& operator=(const StatelessJit& tmpl) = delete;
+  StatefulJit(const StatefulJit& tmpl) = delete;
+  StatefulJit& operator=(const StatefulJit& tmpl) = delete;
 
   const TargetMachine &getTargetMachine() const { 
     return *TM; 

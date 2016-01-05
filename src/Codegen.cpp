@@ -1,7 +1,7 @@
 #include "Codegen.h"
 
 #include "Globals.h"
-#include "StatelessJit.h"
+#include "StatefulJit.h"
 
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
@@ -9,9 +9,9 @@
 #include <llvm/IR/Verifier.h>
 
 using namespace llvm;
-using llvm::orc::StatelessJit;
+using llvm::orc::StatefulJit;
 
-static StatelessJit* JitCompiler;
+static StatefulJit* JitCompiler;
 static IRBuilder<> Builder(getGlobalContext());
 static std::map<std::string, Value *> NamedValues;
 
@@ -224,7 +224,7 @@ void VarExprAST::codegenRegisterStatefulVarExpr(int VarId, Value* VoidPtr)
 
 // ----------------------------------------------------------------------------
 
-Function *TopLevelExprAST::codegen(StatelessJit& jit, 
+Function *TopLevelExprAST::codegen(StatefulJit& jit, 
                                    Module* module_rawptr, 
                                    std::string nameId) 
 {
