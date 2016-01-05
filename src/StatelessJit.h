@@ -4,6 +4,7 @@
 #include <unordered_map>
 
 #include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
+#include "llvm/ExecutionEngine/Orc/GlobalMappingLayer.h"
 #include "llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h"
 
 namespace llvm {
@@ -14,6 +15,7 @@ namespace llvm {
 class StatelessJit
 {
   using ObjectLayer_t = ObjectLinkingLayer<>;
+  using MappingLayer_t = GlobalMappingLayer<ObjectLayer_t>;
   using CompileLayer_t = IRCompileLayer<ObjectLayer_t>;
   using ModuleHandle_t = CompileLayer_t::ModuleSetHandleT;
 
@@ -27,6 +29,11 @@ public:
   const TargetMachine &getTargetMachine() const { 
     return *TM; 
   }
+
+  /// add an existing object (function or pointer) via its
+  /// mangled name. This function is best used for unmangled
+  /// c style names.
+  void addGlobalMapping(StringRef Name, void* Addr);
 
   ModuleHandle_t addModule(std::unique_ptr<Module> module);
   void removeModule(ModuleHandle_t handle);
@@ -56,6 +63,7 @@ private:
   const DataLayout DL;
   ObjectLayer_t ObjectLayer;
   CompileLayer_t CompileLayer;
+  MappingLayer_t MappingLayer;
   std::vector<ModuleHandle_t> ModuleHandles;
   std::unique_ptr<TargetMachine> TM;
 

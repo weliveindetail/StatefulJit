@@ -17,6 +17,7 @@ StatelessJit::StatelessJit(TargetMachine *targetMachine_rawptr)
   : TM(targetMachine_rawptr)
   , DL(targetMachine_rawptr->createDataLayout())
   , CompileLayer(ObjectLayer, SimpleCompiler(*targetMachine_rawptr))
+  , MappingLayer(ObjectLayer)
 {
   llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
 }
@@ -53,6 +54,13 @@ void* StatelessJit::getMemLocation(int varId)
 void StatelessJit::submitMemLocation(int varId, void* ptr)
 {
   mapMemLocationsById[varId] = ptr;
+}
+
+// ----------------------------------------------------------------------------
+
+void StatelessJit::addGlobalMapping(StringRef Name, void* Addr)
+{
+  MappingLayer.setGlobalMapping(mangle(Name), TargetAddress(Addr));
 }
 
 // ----------------------------------------------------------------------------
@@ -128,7 +136,11 @@ auto StatelessJit::findMangledSymbol(const std::string &name) -> JITSymbol
     if (auto symbol = CompileLayer.findSymbolIn(modHandle, name, exportedSymbolsOnly))
       return symbol;
 
-  // If we can't find the symbol in the JIT, try looking in the host process.
+  // look up in added globals
+  if (auto SymAddr = MappingLayer.findSymbol(name, exportedSymbolsOnly))
+    return SymAddr;
+
+  // look up in the host process
   if (auto SymAddr = RTDyldMemoryManager::getSymbolAddressInProcess(name))
     return JITSymbol(SymAddr, JITSymbolFlags::Exported);
 
