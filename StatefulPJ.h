@@ -64,7 +64,7 @@ static JITSymbol CompileTopLevelExpr(StatelessJit& jit)
   assert(topLevelAst && "Parsing failed");
 
   // generate code into anonymous function
-  Function* toplevelFn = topLevelAst->codegen(module_ptr.get(), nameId);
+  Function* toplevelFn = topLevelAst->codegen(jit, module_ptr.get(), nameId);
   assert(toplevelFn && "Code generation failed");
 
   toplevelFn->dump();

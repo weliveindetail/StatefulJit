@@ -1,14 +1,17 @@
 #include "Codegen.h"
 
+#include "Globals.h"
+#include "StatelessJit.h"
+
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Verifier.h>
 
-#include "Globals.h"
-
 using namespace llvm;
+using llvm::orc::StatelessJit;
 
+static StatelessJit* JitCompiler;
 static IRBuilder<> Builder(getGlobalContext());
 static std::map<std::string, Value *> NamedValues;
 
@@ -125,8 +128,11 @@ Value *VarExprAST::codegen()
 
 // ----------------------------------------------------------------------------
 
-Function *TopLevelExprAST::codegen(Module* module_rawptr, std::string nameId) 
+Function *TopLevelExprAST::codegen(StatelessJit& jit, 
+                                   Module* module_rawptr, 
+                                   std::string nameId) 
 {
+  JitCompiler = &jit;
   auto& C = getGlobalContext();
 
   // declare top-level function

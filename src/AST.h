@@ -8,6 +8,12 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
 
+namespace llvm {
+  namespace orc {
+    class StatelessJit;
+  }
+};
+
 // ----------------------------------------------------------------------------
 
 // Base class for all expression nodes.
@@ -83,6 +89,12 @@ class TopLevelExprAST
   std::unique_ptr<ExprAST> Body;
 
 public:
-  TopLevelExprAST(std::unique_ptr<ExprAST> Body) : Body(std::move(Body)) {}
-  llvm::Function *codegen(llvm::Module* module_rawptr, std::string nameId);
+  TopLevelExprAST(std::unique_ptr<ExprAST> Body) : Body(std::move(Body)) 
+  {
+  }
+
+  llvm::Function *codegen(
+    llvm::orc::StatelessJit& jit,
+    llvm::Module* module_rawptr,
+    std::string nameId);
 };
