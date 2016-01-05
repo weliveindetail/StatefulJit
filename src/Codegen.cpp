@@ -15,6 +15,16 @@ static StatelessJit* JitCompiler;
 static IRBuilder<> Builder(getGlobalContext());
 static std::map<std::string, Value *> NamedValues;
 
+// ----------------------------------------------------------------------------
+
+// called from compiled code
+extern "C" void SubmitMemoryLocation(int varId, void* ptr)
+{
+  JitCompiler->submitMemLocation(varId, ptr);
+}
+
+// ----------------------------------------------------------------------------
+
 Value *NumberExprAST::codegen() {
   return ConstantFP::get(getGlobalContext(), APFloat(Val));
 }
@@ -134,6 +144,11 @@ Function *TopLevelExprAST::codegen(StatelessJit& jit,
 {
   JitCompiler = &jit;
   auto& C = getGlobalContext();
+
+  // make callback function available in compiled code
+  JitCompiler->addGlobalMapping(
+    "SubmitMemoryLocation", 
+    (void*)SubmitMemoryLocation);
 
   // declare top-level function
   Type* retTy = Type::getDoubleTy(C);
