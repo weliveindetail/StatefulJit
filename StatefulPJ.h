@@ -1,3 +1,5 @@
+#pragma once
+
 #include <llvm/Analysis/Passes.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/IR/LegacyPassManager.h>
@@ -6,6 +8,7 @@
 #include <llvm/Transforms/Scalar.h>
 
 #include "src/Parser.h"
+#include "src/Codegen.h"
 #include "src/StatelessJit.h"
 
 using llvm::Module;
@@ -71,11 +74,11 @@ static JITSymbol CompileTopLevelExpr(StatelessJit& jit)
   auto fpm_ptr = SetupPassManager(module_ptr.get());
 
   // eval top-level expression
-  auto ast = ParseTopLevelExpr();
-  assert(ast && "Parsing failed");
+  auto topLevelAst = ParseTopLevelExpr();
+  assert(topLevelAst && "Parsing failed");
 
   // generate code into anonymous function
-  Function* toplevelFn = ast->codegen(module_ptr.get(), nameId);
+  Function* toplevelFn = topLevelAst->codegen(module_ptr.get(), nameId);
   assert(toplevelFn && "Code generation failed");
 
   toplevelFn->dump();

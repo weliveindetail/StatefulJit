@@ -8,10 +8,6 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
 
-using llvm::Value;
-using llvm::Function;
-using llvm::Module;
-
 // ----------------------------------------------------------------------------
 
 // Base class for all expression nodes.
@@ -19,7 +15,7 @@ class ExprAST
 {
 public:
   virtual ~ExprAST() {}
-  virtual Value *codegen() = 0;
+  virtual llvm::Value *codegen() = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -31,7 +27,7 @@ class NumberExprAST : public ExprAST
 
 public:
   NumberExprAST(double Val) : Val(Val) {}
-  Value *codegen() override;
+  llvm::Value *codegen() override;
 };
 
 // ----------------------------------------------------------------------------
@@ -44,7 +40,7 @@ class VariableExprAST : public ExprAST
 public:
   VariableExprAST(const std::string &Name) : Name(Name) {}
   const std::string &getName() const { return Name; }
-  Value *codegen() override;
+  llvm::Value *codegen() override;
 };
 
 // ----------------------------------------------------------------------------
@@ -59,7 +55,7 @@ public:
   BinaryExprAST(char Op, std::unique_ptr<ExprAST> LHS,
     std::unique_ptr<ExprAST> RHS)
     : Op(Op), LHS(std::move(LHS)), RHS(std::move(RHS)) {}
-  Value *codegen() override;
+  llvm::Value *codegen() override;
 };
 
 // ----------------------------------------------------------------------------
@@ -75,7 +71,8 @@ public:
     std::vector<std::pair<std::string, std::unique_ptr<ExprAST>>> VarNames,
     std::unique_ptr<ExprAST> Body)
     : VarNames(std::move(VarNames)), Body(std::move(Body)) {}
-  Value *codegen() override;
+
+  llvm::Value* codegen() override;
 };
 
 // ----------------------------------------------------------------------------
@@ -87,5 +84,5 @@ class TopLevelExprAST
 
 public:
   TopLevelExprAST(std::unique_ptr<ExprAST> Body) : Body(std::move(Body)) {}
-  Function *codegen(Module* module_rawptr, std::string nameId);
+  llvm::Function *codegen(llvm::Module* module_rawptr, std::string nameId);
 };

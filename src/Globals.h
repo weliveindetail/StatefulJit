@@ -12,11 +12,6 @@
 
 #include "AST.h"
 
-using llvm::Module;
-using llvm::Function;
-using llvm::IRBuilder;
-using llvm::AllocaInst;
-
 /// Error* - These are little helper functions for error handling.
 inline std::unique_ptr<ExprAST> Error(const char *Str) {
   fprintf(stderr, "Error: %s\n", Str);
@@ -28,7 +23,7 @@ inline std::unique_ptr<ExprAST> ErrorP(const char *Str) {
   return nullptr;
 }
 
-inline Value *ErrorV(const char *Str) {
+inline llvm::Value *ErrorV(const char *Str) {
   Error(Str);
   return nullptr;
 }

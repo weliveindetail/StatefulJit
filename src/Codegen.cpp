@@ -16,6 +16,8 @@ Value *NumberExprAST::codegen() {
   return ConstantFP::get(getGlobalContext(), APFloat(Val));
 }
 
+// ----------------------------------------------------------------------------
+
 Value *VariableExprAST::codegen() {
   // Look this variable up in the function.
   Value *V = NamedValues[Name];
@@ -25,6 +27,8 @@ Value *VariableExprAST::codegen() {
   // Load the value.
   return Builder.CreateLoad(V, Name.c_str());
 }
+
+// ----------------------------------------------------------------------------
 
 Value *BinaryExprAST::codegen() {
   // Special case '=' because we don't want to emit the LHS as an expression.
@@ -72,6 +76,8 @@ Value *BinaryExprAST::codegen() {
   }
 }
 
+// ----------------------------------------------------------------------------
+
 Value *VarExprAST::codegen()
 {
   auto& C = getGlobalContext();
@@ -117,36 +123,35 @@ Value *VarExprAST::codegen()
   return Body->codegen();
 }
 
+// ----------------------------------------------------------------------------
+
 Function *TopLevelExprAST::codegen(Module* module_rawptr, std::string nameId) 
 {
   auto& C = getGlobalContext();
 
-  // the top-level function takes no arguments and returns a double
-  Function *TheFunction = Function::Create(
-    FunctionType::get(Type::getDoubleTy(C), false),
+  // declare top-level function
+  Type* retTy = Type::getDoubleTy(C);
+  FunctionType* signature = FunctionType::get(retTy, false);
+
+  Function *topLevelFn = Function::Create(signature,
     Function::ExternalLinkage, nameId, module_rawptr);
 
-  // Create a new basic block to start insertion into.
-  BasicBlock *BB = BasicBlock::Create(C, "entry", TheFunction);
+  // prepare codegen
+  BasicBlock *BB = BasicBlock::Create(C, "entry", topLevelFn);
   Builder.SetInsertPoint(BB);
 
-  Value *RetVal = Body->codegen();
+  if (Value* retVal = Body->codegen())
+  {
+    Builder.CreateRet(retVal);
+    verifyFunction(*topLevelFn);
 
-  // Error reading body, remove function.
-  if (!RetVal) {
-    TheFunction->eraseFromParent();
+    topLevelFn->setName(nameId);
+    return topLevelFn;
+  }
+  else
+  {
+    // error reading body
+    topLevelFn->eraseFromParent();
     return nullptr;
   }
-
-  // Finish off the function.
-  Builder.CreateRet(RetVal);
-
-  // Validate the generated code, checking for consistency.
-  verifyFunction(*TheFunction);
-
-  // Run the optimizer on the function.
-  //TheFPM->run(*TheFunction);
-
-  TheFunction->setName(nameId);
-  return TheFunction;
 }
