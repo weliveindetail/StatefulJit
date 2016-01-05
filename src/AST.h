@@ -79,6 +79,11 @@ public:
     : VarNames(std::move(VarNames)), Body(std::move(Body)) {}
 
   llvm::Value* codegen() override;
+
+private:
+  llvm::Value* codegenStatefulVarExpr(std::string Name, llvm::Value* InitValue);
+  llvm::Value* codegenAllocStatefulVarExpr(std::string Name);
+  void codegenRegisterStatefulVarExpr(int VarId, llvm::Value* VoidPtr);
 };
 
 // ----------------------------------------------------------------------------
