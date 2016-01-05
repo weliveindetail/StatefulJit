@@ -29,7 +29,7 @@
     <ClInclude Include="src\Lexer.h">
       <Filter>Implementation</Filter>
     </ClInclude>
-    <ClInclude Include="src\StatelessJit.h">
+    <ClInclude Include="src\StatefulJit.h">
       <Filter>Implementation</Filter>
     </ClInclude>
   </ItemGroup>
@@ -40,7 +40,7 @@
     <ClCompile Include="src\Parser.cpp">
       <Filter>Implementation</Filter>
     </ClCompile>
-    <ClCompile Include="src\StatelessJit.cpp">
+    <ClCompile Include="src\StatefulJit.cpp">
       <Filter>Implementation</Filter>
     </ClCompile>
   </ItemGroup>

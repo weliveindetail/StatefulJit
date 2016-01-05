@@ -6,11 +6,11 @@
 #include "StatefulPJ.h"
 
 using llvm::Module;
-using llvm::orc::StatelessJit;
+using llvm::orc::StatefulJit;
 
 // ----------------------------------------------------------------------------
 
-static double Eval(StatelessJit& jit, std::string code)
+static double Eval(StatefulJit& jit, std::string code)
 {
   constexpr auto nameId = "__toplevel_expr";
 
@@ -30,13 +30,29 @@ static double Eval(StatelessJit& jit, std::string code)
 
 // ----------------------------------------------------------------------------
 
-TEST(StatelessEvaluation, Basics)
+TEST(StatefulEvaluation, SingleVariable)
 {
   StaticInit();
-  auto jit = SetupStatelessJit();
-  EXPECT_EQ(0.0, Eval(*jit, "var a in a;"));
+  auto jit = SetupStatefulJit();
+
+  EXPECT_EQ(0.0, Eval(*jit, "var a   in a;"));
   EXPECT_EQ(1.0, Eval(*jit, "var a=1 in a;"));
-  EXPECT_EQ(2.0, Eval(*jit, "var a=3, b=1 in a-b;"));
+  EXPECT_EQ(1.0, Eval(*jit, "var a   in a;"));
+
+  EXPECT_EQ(2.0, Eval(*jit, "var b=2 in b;"));
+  EXPECT_EQ(2.0, Eval(*jit, "var b   in b;"));
+}
+
+// ----------------------------------------------------------------------------
+
+TEST(StatefulEvaluation, MultiVariable)
+{
+  StaticInit();
+  auto jit = SetupStatefulJit();
+
+  EXPECT_EQ(1.0, Eval(*jit, "var a=1    in a;"));
+  EXPECT_EQ(1.0, Eval(*jit, "var a, b   in a + b;"));
+  EXPECT_EQ(3.0, Eval(*jit, "var a, c=2 in a + c;"));
 }
 
 // ----------------------------------------------------------------------------

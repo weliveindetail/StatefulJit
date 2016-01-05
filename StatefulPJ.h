@@ -9,26 +9,26 @@
 
 #include "src/Parser.h"
 #include "src/Codegen.h"
-#include "src/StatelessJit.h"
+#include "src/StatefulJit.h"
 
 using llvm::Module;
 using llvm::orc::JITSymbol;
-using llvm::orc::StatelessJit;
+using llvm::orc::StatefulJit;
 using llvm::legacy::FunctionPassManager;
 
 static int moduleRevision = 0;
 
-static void DeleteJitHistory(StatelessJit& jit)
+static void DeleteJitHistory(StatefulJit& jit)
 {
   moduleRevision = 0;
   jit.clearModules();
 }
 
-static std::unique_ptr<StatelessJit> SetupStatelessJit()
+static std::unique_ptr<StatefulJit> SetupStatefulJit()
 {
   moduleRevision = 0;
   auto* targetMachine_rawptr = llvm::EngineBuilder().selectTarget();
-  return std::make_unique<StatelessJit>(targetMachine_rawptr);
+  return std::make_unique<StatefulJit>(targetMachine_rawptr);
 }
 
 static void StaticInit()
@@ -45,7 +45,7 @@ static void StaticInit()
   BinopPrecedence['*'] = 40; // highest
 }
 
-static std::unique_ptr<Module> SetupModule(std::string moduleId, const StatelessJit& jit)
+static std::unique_ptr<Module> SetupModule(std::string moduleId, const StatefulJit& jit)
 {
   auto module = std::make_unique<Module>(moduleId, llvm::getGlobalContext());
   module->setDataLayout(jit.getTargetMachine().createDataLayout());
@@ -53,7 +53,7 @@ static std::unique_ptr<Module> SetupModule(std::string moduleId, const Stateless
   return module;
 }
 
-static JITSymbol CompileTopLevelExpr(StatelessJit& jit)
+static JITSymbol CompileTopLevelExpr(StatefulJit& jit)
 {
   constexpr auto nameId = "__toplevel_expr";
 
@@ -64,7 +64,7 @@ static JITSymbol CompileTopLevelExpr(StatelessJit& jit)
   assert(topLevelAst && "Parsing failed");
 
   // generate code into anonymous function
-  Function* toplevelFn = topLevelAst->codegen(module_ptr.get(), nameId);
+  Function* toplevelFn = topLevelAst->codegen(jit, module_ptr.get(), nameId);
   assert(toplevelFn && "Code generation failed");
 
   toplevelFn->dump();

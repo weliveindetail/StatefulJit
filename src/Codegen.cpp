@@ -1,16 +1,29 @@
 #include "Codegen.h"
 
+#include "Globals.h"
+#include "StatefulJit.h"
+
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Verifier.h>
 
-#include "Globals.h"
-
 using namespace llvm;
+using llvm::orc::StatefulJit;
 
+static StatefulJit* JitCompiler;
 static IRBuilder<> Builder(getGlobalContext());
 static std::map<std::string, Value *> NamedValues;
+
+// ----------------------------------------------------------------------------
+
+// called from compiled code
+extern "C" void SubmitMemoryLocation(int varId, void* ptr)
+{
+  JitCompiler->submitMemLocation(varId, ptr);
+}
+
+// ----------------------------------------------------------------------------
 
 Value *NumberExprAST::codegen() {
   return ConstantFP::get(getGlobalContext(), APFloat(Val));
@@ -91,31 +104,18 @@ Value *VarExprAST::codegen()
 
     // prevent self-initialization by emitting the 
     // initializer before adding the variable to scope
-    Value *InitVal;
+    Value *InitVal = nullptr;
+
     if (Init) {
       InitVal = Init->codegen();
       if (!InitVal)
         return nullptr;
     }
-    else { // If not specified, use 0.0.
-      InitVal = ConstantFP::get(C, APFloat(0.0));
+    else {
+      // keep nullptr if not specified
     }
 
-    BasicBlock* BB = Builder.GetInsertBlock();
-    Module* M = BB->getParent()->getParent();
-
-    Type* intTy = Type::getInt64Ty(C);
-    Type* bytePtrTy = Type::getInt8PtrTy(C);
-    Value* mallocFn = M->getOrInsertFunction("malloc", bytePtrTy, intTy, nullptr);
-
-    Constant* dataSize = ConstantExpr::getSizeOf(Type::getDoubleTy(C));
-    CallInst* mallocCall = CallInst::Create(mallocFn, dataSize, VarName + "_void_ptr");
-    BB->getInstList().push_back(mallocCall);
-
-    Value* void_ptr = mallocCall;
-    Value* double_ptr = Builder.CreateBitCast(void_ptr, Type::getDoublePtrTy(C), VarName + "_double_ptr");
-    Builder.CreateStore(InitVal, double_ptr);
-
+    Value* double_ptr = codegenStatefulVarExpr(VarName, InitVal);
     NamedValues[VarName] = double_ptr;
   }
 
@@ -125,9 +125,116 @@ Value *VarExprAST::codegen()
 
 // ----------------------------------------------------------------------------
 
-Function *TopLevelExprAST::codegen(Module* module_rawptr, std::string nameId) 
+Value* VarExprAST::codegenStatefulVarExpr(std::string Name, Value* InitValue)
 {
   auto& C = getGlobalContext();
+
+  // this is minimalistic! add: type, namespace, ..
+  int varId = JitCompiler->getOrCreateStatefulVariable(Name);
+
+  if (JitCompiler->hasMemLocation(varId))
+  {
+    // variable already existed in previous revision
+    void* existingVoidPtr = JitCompiler->getMemLocation(varId);
+
+    // compile address from immediate value
+    Type* immTy = Type::getInt64Ty(C);
+    Constant* immAddr = ConstantInt::get(immTy, (int64_t)existingVoidPtr);
+    Value* voidPtr = ConstantExpr::getIntToPtr(immAddr, Type::getInt8PtrTy(C));
+
+    // cast pointer to double
+    Type* ptrTy = Type::getDoublePtrTy(C);
+    Value* doublePtr = Builder.CreateBitCast(voidPtr, ptrTy, Name + "_ptr");
+
+    // overwrite previous value only if specified explicitly
+    if (InitValue)
+    {
+      Builder.CreateStore(InitValue, doublePtr);
+    }
+
+    return doublePtr;
+  }
+  else
+  {
+    // compile new variable allocation
+    Value* voidPtr = codegenAllocStatefulVarExpr(Name);
+
+    // submit address to Jit
+    codegenRegisterStatefulVarExpr(varId, voidPtr);
+
+    // cast pointer to double
+    Type* ptrTy = Type::getDoublePtrTy(C);
+    Value* doublePtr = Builder.CreateBitCast(voidPtr, ptrTy, Name + "_ptr");
+
+    // initialize implicitly if no explicit value provided
+    if (!InitValue)
+      InitValue = ConstantFP::get(C, APFloat(0.0));
+
+    Builder.CreateStore(InitValue, doublePtr);
+    return doublePtr;
+  }
+}
+
+// ----------------------------------------------------------------------------
+
+Value* VarExprAST::codegenAllocStatefulVarExpr(std::string Name)
+{
+  auto& C = getGlobalContext();
+  Module* M = Builder.GetInsertBlock()->getParent()->getParent();
+
+  // declare function
+  Type* retTy = Type::getInt8PtrTy(C);
+  ArrayRef<Type*> argTys = { Type::getInt64Ty(C) };
+  FunctionType* mallocSig = FunctionType::get(retTy, argTys, false);
+
+  Value* mallocFn = M->getOrInsertFunction("malloc", mallocSig);
+
+  // compile call
+  Constant* dataSize = ConstantExpr::getSizeOf(Type::getDoubleTy(C));
+  CallInst* mallocCall = CallInst::Create(mallocFn, dataSize, Name + "_void_ptr");
+  Builder.GetInsertBlock()->getInstList().push_back(mallocCall);
+
+  return mallocCall; // the symbol the return value of malloc gets stored to
+}
+
+// ----------------------------------------------------------------------------
+
+void VarExprAST::codegenRegisterStatefulVarExpr(int VarId, Value* VoidPtr)
+{
+  auto& C = getGlobalContext();
+  Module* M = Builder.GetInsertBlock()->getParent()->getParent();
+
+  // declare function
+  Type* retTy = Type::getVoidTy(C);
+  ArrayRef<Type*> argTys = { Type::getInt64Ty(C), Type::getInt8PtrTy(C) };
+  FunctionType* signature = FunctionType::get(retTy, argTys, false);
+
+  Value* submitMemLocFn = M->getOrInsertFunction(
+    "SubmitMemoryLocation", signature);
+
+  // compile call
+  Type* intTy = Type::getInt64Ty(C);
+  int intSz = intTy->getPrimitiveSizeInBits();
+  Constant* varIdConst = ConstantInt::get(intTy, APInt(intSz, VarId, true));
+
+  ArrayRef<Value*> params({ varIdConst, VoidPtr });
+  CallInst* setMemLocationCall = CallInst::Create(submitMemLocFn, params);
+  Builder.GetInsertBlock()->getInstList().push_back(setMemLocationCall);
+}
+
+// ----------------------------------------------------------------------------
+
+Function *TopLevelExprAST::codegen(StatefulJit& jit, 
+                                   Module* module_rawptr, 
+                                   std::string nameId) 
+{
+  JitCompiler = &jit;
+  auto& C = getGlobalContext();
+
+  // make callback function available in compiled code
+  JitCompiler->addGlobalMapping(
+    "SubmitMemoryLocation", 
+    (void*)SubmitMemoryLocation);
 
   // declare top-level function
   Type* retTy = Type::getDoubleTy(C);

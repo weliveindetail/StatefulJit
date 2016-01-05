@@ -8,6 +8,12 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
 
+namespace llvm {
+  namespace orc {
+    class StatefulJit;
+  }
+};
+
 // ----------------------------------------------------------------------------
 
 // Base class for all expression nodes.
@@ -73,6 +79,11 @@ public:
     : VarNames(std::move(VarNames)), Body(std::move(Body)) {}
 
   llvm::Value* codegen() override;
+
+private:
+  llvm::Value* codegenStatefulVarExpr(std::string Name, llvm::Value* InitValue);
+  llvm::Value* codegenAllocStatefulVarExpr(std::string Name);
+  void codegenRegisterStatefulVarExpr(int VarId, llvm::Value* VoidPtr);
 };
 
 // ----------------------------------------------------------------------------
@@ -83,6 +94,12 @@ class TopLevelExprAST
   std::unique_ptr<ExprAST> Body;
 
 public:
-  TopLevelExprAST(std::unique_ptr<ExprAST> Body) : Body(std::move(Body)) {}
-  llvm::Function *codegen(llvm::Module* module_rawptr, std::string nameId);
+  TopLevelExprAST(std::unique_ptr<ExprAST> Body) : Body(std::move(Body)) 
+  {
+  }
+
+  llvm::Function *codegen(
+    llvm::orc::StatefulJit& jit,
+    llvm::Module* module_rawptr,
+    std::string nameId);
 };
