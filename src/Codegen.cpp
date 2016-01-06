@@ -200,16 +200,19 @@ void VarExprAST::codegenRegisterStatefulVarExpr(int VarId, Value* VoidPtr)
 
   // declare function
   Type* retTy = Type::getVoidTy(C);
-  ArrayRef<Type*> argTys = { Type::getInt64Ty(C), Type::getInt8PtrTy(C) };
-  FunctionType* signature = FunctionType::get(retTy, argTys, false);
+  int intBits = sizeof(int) * 8;
+  Type* argVarIdTy = Type::getIntNTy(C, intBits);
+  Type* argAddrPtrTy = Type::getInt8PtrTy(C);
+
+  FunctionType* signature = 
+    FunctionType::get(retTy, { argVarIdTy, argAddrPtrTy }, false);
 
   Value* submitMemLocFn = M->getOrInsertFunction(
     "SubmitMemoryLocation", signature);
 
   // compile call
-  Type* intTy = Type::getInt64Ty(C);
-  int intSz = intTy->getPrimitiveSizeInBits();
-  Constant* varIdConst = ConstantInt::get(intTy, APInt(intSz, VarId, true));
+  Constant* varIdConst =
+    ConstantInt::get(argVarIdTy, APInt(intBits, VarId, true));
 
   ArrayRef<Value*> params({ varIdConst, VoidPtr });
   CallInst* setMemLocationCall = CallInst::Create(submitMemLocFn, params);
