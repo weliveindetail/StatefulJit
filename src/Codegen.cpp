@@ -131,9 +131,10 @@ Value* VarExprAST::codegenStatefulVarExpr(std::string Name, Value* InitValue)
     void* existingVoidPtr = JitCompiler->getMemLocation(varId);
 
     // compile address from immediate value
-    Type* immTy = Type::getInt64Ty(C);
-    Constant* immAddr = ConstantInt::get(immTy, (int64_t)existingVoidPtr);
-    Value* voidPtr = ConstantExpr::getIntToPtr(immAddr, Type::getInt8PtrTy(C));
+    int ptrBits = sizeof(void*) * 8;
+    Type* ptrAsIntTy = Type::getIntNTy(C, ptrBits);
+    Constant* addrAsInt = ConstantInt::get(ptrAsIntTy, (int64_t)existingVoidPtr);
+    Value* voidPtr = ConstantExpr::getIntToPtr(addrAsInt, Type::getInt8PtrTy(C));
 
     // cast pointer to double
     Type* ptrTy = Type::getDoublePtrTy(C);
