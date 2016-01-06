@@ -39,12 +39,12 @@ static void MainLoop()
   getNextToken();
 
   while (1) {
-    fprintf(stderr, "ready> ");
     switch (CurTok)
     {
       case tok_eof:
         return;
       case ';': // ignore top-level semicolons.
+        fprintf(stderr, "ready> ");
         getNextToken();
         break;
       default:
