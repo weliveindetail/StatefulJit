@@ -93,33 +93,26 @@ Value *BinaryExprAST::codegen() {
 
 Value *VarExprAST::codegen()
 {
-  auto& C = getGlobalContext();
-  Function *TheFunction = Builder.GetInsertBlock()->getParent();
-
-  // Register all variables and emit their initializer
-  for (unsigned i = 0, e = VarNames.size(); i != e; ++i)
+  // codegen stateful variables and init
+  for (auto& varNameExpr : VarNames)
   {
-    const std::string &VarName = VarNames[i].first;
-    ExprAST *Init = VarNames[i].second.get();
+    std::string name = varNameExpr.first;
+    ExprAST *initExpr_rawptr = varNameExpr.second.get();
 
-    // prevent self-initialization by emitting the 
-    // initializer before adding the variable to scope
-    Value *InitVal = nullptr;
-
-    if (Init) {
-      InitVal = Init->codegen();
-      if (!InitVal)
+    // keep nullptr if there is no explicit init expression
+    Value *initVal = nullptr;
+    if (initExpr_rawptr)
+    {
+      initVal = initExpr_rawptr->codegen();
+      if (!initVal)
         return nullptr;
     }
-    else {
-      // keep nullptr if not specified
-    }
 
-    Value* double_ptr = codegenStatefulVarExpr(VarName, InitVal);
-    NamedValues[VarName] = double_ptr;
+    Value* double_ptr = codegenStatefulVarExpr(name, initVal);
+    NamedValues[name] = double_ptr;
   }
 
-  // Codegen the body and return its computation
+  // codegen the function body and return its computation
   return Body->codegen();
 }
 
@@ -146,7 +139,7 @@ Value* VarExprAST::codegenStatefulVarExpr(std::string Name, Value* InitValue)
     Type* ptrTy = Type::getDoublePtrTy(C);
     Value* doublePtr = Builder.CreateBitCast(voidPtr, ptrTy, Name + "_ptr");
 
-    // overwrite previous value only if specified explicitly
+    // overwrite previous value only if init is specified explicitly
     if (InitValue)
     {
       Builder.CreateStore(InitValue, doublePtr);
