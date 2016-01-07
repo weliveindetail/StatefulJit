@@ -36,7 +36,7 @@ the return values. The current implemention successfully passes the test case.
 initializes it. In the second and the third program the compiler finds it uninitialized. This 
 is the time to start searching for previous revisions of the variable's state. If it's 
 successful (as here in the case of `a`) it maps the new variable to the old location in memory. 
-Otherwise it allocates new memory on the heap and writes the default initialization value.
+Otherwise it allocates new memory on the heap and compiles the default initialization.
 
 ## Requirements
 
