@@ -17,7 +17,7 @@ StatefulJit::StatefulJit(TargetMachine *targetMachine_rawptr)
   : TM(targetMachine_rawptr)
   , DL(targetMachine_rawptr->createDataLayout())
   , CompileLayer(ObjectLayer, SimpleCompiler(*targetMachine_rawptr))
-  , MappingLayer(ObjectLayer)
+  , MappingLayer(CompileLayer)
 {
   llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
 }

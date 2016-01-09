@@ -15,8 +15,8 @@ namespace llvm {
 class StatefulJit
 {
   using ObjectLayer_t = ObjectLinkingLayer<>;
-  using MappingLayer_t = GlobalMappingLayer<ObjectLayer_t>;
   using CompileLayer_t = IRCompileLayer<ObjectLayer_t>;
+  using MappingLayer_t = GlobalMappingLayer<CompileLayer_t>;
   using ModuleHandle_t = CompileLayer_t::ModuleSetHandleT;
 
 public:
