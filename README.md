@@ -4,7 +4,7 @@ A minimal experimental Just-in-Time compiler that maintains variable state durin
 This may become interesting especially for 
 [live coding systems](https://en.wikipedia.org/wiki/Live_coding).
 
-## Project Setup
+## Project Structure
 
 StatefulJit is a static library that contains the compiler and the execution engine. It defines 
 a very basic API via the StatefulPJ.h used by the two "client" projects InteractiveClient and 
@@ -48,10 +48,3 @@ Technical:
 * 3rd-party libraies: LLVM master installed, gtest binaries
 * platforms: Windows 64-bit only (at the moment)
 * compilers: Visual Studio 14 2015
-
-## Known Issues
-
-The JIT compiler uses the `llvm/ExecutionEngine/Orc/GlobalMappingLayer.h` class, which has
-as little bug in line 35 using the type trait `ModuleSetHandleT`. Within the default 
-`ObjectLinkingLayer` this cannot be resolved as it was renamed into `ObjSetHandleT` at 
-some point. Renaming it in the header file fixes this problem.
