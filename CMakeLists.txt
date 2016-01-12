@@ -2,10 +2,36 @@ cmake_minimum_required(VERSION 3.0)
 
 project(StatefulJIT)
 
-find_package(LLVM)
+# find the correct LLVM installation
+if(WIN32)
+	set(workaround "ProgramFiles(x86)")
+	set(ProgramFiles32Bit "$ENV{${workaround}}")
+	set(ProgramFiles64Bit "$ENV{ProgramFiles}")
+	set(ProgramFilesWOW64 "$ENV{ProgramW6432}")
 
-if( NOT LLVM_FOUND )
-  message(FATAL_ERROR "LLVM package can't be found. Set CMAKE_PREFIX_PATH variable to LLVM's installation prefix.")
+	if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+		# find LLVM 64bit build at "C:\Program Files\LLVM"
+		message(STATUS "Generating for 64bit target")
+
+		if (${ProgramFiles32Bit} STREQUAL ${ProgramFiles64Bit})
+			set(ExpectedInstallDir ${ProgramFilesWOW64})
+		else()
+			set(ExpectedInstallDir ${ProgramFiles64Bit})
+		endif()
+	else(CMAKE_SIZEOF_VOID_P EQUAL 4)
+		# find LLVM 32bit build at "C:\Program Files (x86)\LLVM
+		message(STATUS "Generating for 32bit target")
+		set(ExpectedInstallDir ${ProgramFiles32Bit})
+	else()
+		message(FATAL_ERROR "Unable to determine target machine bitwidth.")
+	endif()
+
+	set(LLVM_CONFIG_PATH "${ExpectedInstallDir}/LLVM/share/llvm/cmake/LLVMConfig.cmake")
+	message(STATUS "Expect LLVM config file at ${LLVM_CONFIG_PATH}")
+
+	include(${LLVM_CONFIG_PATH})
+else()
+	find_package(LLVM REQUIRED)
 endif()
 
 set(CMAKE_BUILD_TYPE Debug)
