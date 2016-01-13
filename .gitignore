@@ -1,9 +1,3 @@
-/Debug/
-/x64/
-/.vs/
-*.sdf
-*.VC.opendb
-*.vcxproj.user
 /build-64bit/
 /build-32bit/
 /build/
