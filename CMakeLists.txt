@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 
 project(StatefulJIT)
 
-# find the correct LLVM installation
+### find the correct LLVM installation
 if(WIN32)
 	set(workaround "ProgramFiles(x86)")
 	set(ProgramFiles32Bit "$ENV{${workaround}}")
@@ -31,10 +31,11 @@ if(WIN32)
 
 	include(${LLVM_CONFIG_PATH})
 else()
+	set(LLVM_REQUIRES_RTTI ON)
 	find_package(LLVM REQUIRED)
 endif()
 
-set(CMAKE_BUILD_TYPE Debug)
+### collect the required LLVM link libraries (incl. their dependencies)
 llvm_map_components_to_libnames(LLVM_LIBS 
 	core 
 	orcjit
@@ -42,8 +43,13 @@ llvm_map_components_to_libnames(LLVM_LIBS
 	x86codegen 
 )
 
+### allow stdint.h from the C99 standard, as LLVM needs it on Mac
+if(XCODE)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS")
+endif()
+
+### force static runtime libraries for msvc builds, as gtest needs it on Windows
 if(MSVC)
-  # force static runtime libraries for msvc builds
   set(variables 
     CMAKE_CXX_FLAGS_DEBUG
     CMAKE_CXX_FLAGS_RELEASE
@@ -53,14 +59,12 @@ if(MSVC)
 	  string(REGEX REPLACE "/MD" "/MT" ${variable} "${${variable}}")
 	endif()
   endforeach()
-else(XCODE)
-  # allow usage of the stdint.h from the C99 standard
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS")
 endif()
 
 message(STATUS "Build flags Debug:" ${CMAKE_CXX_FLAGS_DEBUG})
 message(STATUS "Build flags Release: " ${CMAKE_CXX_FLAGS_RELEASE})
 
+### collect source files
 unset(FILES_api)
 list(APPEND FILES_api "StatefulPJ.h")
 #source_group("include" FILES FILES_api)
@@ -77,15 +81,12 @@ list(APPEND FILES_src "src/StatefulJit.h")
 list(APPEND FILES_src "src/StatefulJit.cpp")
 #list(APPEND FILES_src "src/VariableRecord.h")
 #list(APPEND FILES_src "src/VariableRecord.cpp")
-source_group("src" FILES FILES_src)
+#source_group("src" FILES FILES_src)
 
-# Create a library called "Hello" which includes the source file "hello.cxx".
-# The extension is already found. Any number of sources could be listed here.
+### put together the library target
 add_library(StatefulJIT ${FILES_api} ${FILES_src})
 
 set_property(TARGET StatefulJIT PROPERTY CXX_STANDARD 14)
-set(LLVM_REQUIRES_RTTI 1)
-set(EXCLUDE_FROM_ALL ON)
 
 target_include_directories(StatefulJIT 
 	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${LLVM_INCLUDE_DIRS}
@@ -95,11 +96,6 @@ target_link_libraries(StatefulJIT
 	PUBLIC ${LLVM_LIBS}
 )
 
+### process the clients using the library
 add_subdirectory(clients/InteractiveClient)
 add_subdirectory(clients/TestClient)
-
-# Make sure the compiler can find include files for our Hello library
-# when other libraries or executables link to Hello
-#target_include_directories (Hello PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
-#target_link_libraries(kscope ast codegen parsing ${REQ_LLVM_LIBRARIES} -lc++)
