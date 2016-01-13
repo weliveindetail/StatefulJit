@@ -61,6 +61,10 @@ int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   int exitCode = RUN_ALL_TESTS();
 
-  getchar();
+  // on windows don't close the console window immediately
+  #ifdef _WIN32
+    getchar();
+  #endif
+
   return exitCode;
 }
