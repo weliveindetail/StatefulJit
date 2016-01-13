@@ -8,7 +8,7 @@
 #include <cctype>
 #include <cstdio>
 
-#include "StatefulPJ.h"
+#include "StatefulJitApi.h"
 
 using llvm::Module;
 using llvm::orc::StatefulJit;

@@ -66,7 +66,7 @@ message(STATUS "Build flags Release: " ${CMAKE_CXX_FLAGS_RELEASE})
 
 ### collect source files
 unset(FILES_api)
-list(APPEND FILES_api "StatefulPJ.h")
+list(APPEND FILES_api "StatefulJitAPI.h")
 #source_group("include" FILES FILES_api)
 
 unset(FILES_src)
