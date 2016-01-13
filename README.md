@@ -38,13 +38,31 @@ is the time to start searching for previous revisions of the variable's state. I
 successful (as here in the case of `a`) it maps the new variable to the old location in memory. 
 Otherwise it allocates new memory on the heap and compiles the default initialization.
 
-## Requirements
+## Conceptual Requirements
 
-Conceptual:
 * variables must be allocated on the heap (obviously)
 * variable types must have a primitive constructor
 
-Technical:
-* 3rd-party libraies: LLVM master installed, gtest binaries
-* platforms: Windows 64-bit only (at the moment)
-* compilers: Visual Studio 14 2015
+## Build Setup
+
+Get CMake ready:
+* install the latest CMake for your operating system, you can [find it here](https://cmake.org/)
+
+Get LLVM ready:
+* checkout the latest version of LLVM from [SVN trunk](http://llvm.org/svn/llvm-project/llvm/trunk) or the master branch of the [git mirror](https://github.com/llvm-mirror/llvm)
+* find the sources on disk and **patch the top-level CMakeLists.txt** as [shown here](https://rawgit.com/weliveindetail/StatefulJit/master/docs/patch-llvm-cmakelists.html)
+* build and install LLVM with CMake as [described here](http://llvm.org/docs/CMake.html)
+
+Get the sources:
+* select a folder of your choice in the command line
+* run `git clone https://github.com/weliveindetail/StatefulJit.git`
+* create and switch to a build directory using `mkdir StatefulJit/build` and `cd StatefulJit/build`
+* generate project files for your preferred development environment with cmake, e.g. `cmake -G "Xcode" ..`
+
+For Windows users:
+* get the free non-commercial version of Visual Studio 2015 [from here](https://www.visualstudio.com/en-us/downloads/download-visual-studio-vs.aspx) (it's a complete IDE and it will not expire!)
+* there is a prepared `configure-msvc.bat` that generates you both, a 32-bit and a 64-bit VS project
+
+For other OS' users:
+* you know how it works..
+* you'll need a C++14 compatible compiler to build this project
