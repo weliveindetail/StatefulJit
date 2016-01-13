@@ -42,8 +42,8 @@ llvm_map_components_to_libnames(LLVM_LIBS
 	x86codegen 
 )
 
-# force static runtime libraries for msvc builds
 if(MSVC)
+  # force static runtime libraries for msvc builds
   set(variables 
     CMAKE_CXX_FLAGS_DEBUG
     CMAKE_CXX_FLAGS_RELEASE
@@ -53,6 +53,9 @@ if(MSVC)
 	  string(REGEX REPLACE "/MD" "/MT" ${variable} "${${variable}}")
 	endif()
   endforeach()
+else(XCODE)
+  # allow usage of the stdint.h from the C99 standard
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS")
 endif()
 
 message(STATUS "Build flags Debug:" ${CMAKE_CXX_FLAGS_DEBUG})
@@ -79,6 +82,10 @@ source_group("src" FILES FILES_src)
 # Create a library called "Hello" which includes the source file "hello.cxx".
 # The extension is already found. Any number of sources could be listed here.
 add_library(StatefulJIT ${FILES_api} ${FILES_src})
+
+set_property(TARGET StatefulJIT PROPERTY CXX_STANDARD 14)
+set(LLVM_REQUIRES_RTTI 1)
+set(EXCLUDE_FROM_ALL ON)
 
 target_include_directories(StatefulJIT 
 	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${LLVM_INCLUDE_DIRS}
