@@ -1,0 +1,106 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
+  <title>File Compare</title>
+  <style type="text/css">
+  #page {
+    font-family: sans-serif;
+  }
+  table {
+    border-collapse: collapse;
+  }
+  td {
+    white-space: nowrap;
+    font-family: monospace;
+    vertical-align: top;
+  }
+  td.fileName {
+    background: #E6E6E6;
+    font-family: sans-serif;
+    font-size: small;
+  }
+  td.lineNumber {
+    text-align: right;
+    background: #FFC800;
+  }
+  td.added {
+    background: #BEF0BE;
+  }
+  td.removed {
+    background: #C8C8FF;
+  }
+  td.changed {
+    background: #FFC8C8;
+  }
+  td.equal {
+    background: #FFFFFF;
+  }
+  td.empty {
+    background: #F2F2F2;
+  }
+  </style>
+  <link rel="stylesheet" href="style.css" type="text/css">
+</head>
+<body>
+  <table>
+    <tr>
+      <td colspan="2" class="filename">CMakeLists.txt&nbsp;(Index)</td>
+      <td colspan="2" class="filename">CMakeLists.txt&nbsp;(Working&nbsp;Tree)</td>
+    </tr>
+      <tr>
+<td class="lineNumber">1</td><td class="equal">#&nbsp;See&nbsp;docs/CMake.html&nbsp;for&nbsp;instructions&nbsp;about&nbsp;how&nbsp;to&nbsp;build&nbsp;LLVM&nbsp;with&nbsp;CMake.</td><td class="lineNumber">1</td><td class="equal">#&nbsp;See&nbsp;docs/CMake.html&nbsp;for&nbsp;instructions&nbsp;about&nbsp;how&nbsp;to&nbsp;build&nbsp;LLVM&nbsp;with&nbsp;CMake.</td>
+      </tr>
+      <tr>
+<td class="lineNumber">2</td><td class="equal"></td><td class="lineNumber">2</td><td class="equal"></td>
+      </tr>
+      <tr>
+<td class="lineNumber">3</td><td class="equal">cmake_minimum_required(VERSION&nbsp;2.8.12.2)</td><td class="lineNumber">3</td><td class="equal">cmake_minimum_required(VERSION&nbsp;2.8.12.2)</td>
+      </tr>
+      <tr>
+<td class="lineNumber">4</td><td class="equal"></td><td class="lineNumber">4</td><td class="equal"></td>
+      </tr>
+      <tr>
+<td class="lineNumber"></td><td class="empty"></td><td class="lineNumber">5</td><td class="added">SET(LLVM_USE_CRT_DEBUG&nbsp;&quot;MTd&quot;)</td>
+      </tr>
+      <tr>
+<td class="lineNumber"></td><td class="empty"></td><td class="lineNumber">6</td><td class="added">SET(LLVM_USE_CRT_RELEASE&nbsp;&quot;MT&quot;)</td>
+      </tr>
+      <tr>
+<td class="lineNumber"></td><td class="empty"></td><td class="lineNumber">7</td><td class="added">SET(LLVM_USE_CRT_MINSIZEREL&nbsp;&quot;MT&quot;)</td>
+      </tr>
+      <tr>
+<td class="lineNumber"></td><td class="empty"></td><td class="lineNumber">8</td><td class="added">SET(LLVM_USE_CRT_RELWITHDEBINFO&nbsp;&quot;MT&quot;)</td>
+      </tr>
+      <tr>
+<td class="lineNumber"></td><td class="empty"></td><td class="lineNumber">9</td><td class="added"></td>
+      </tr>
+      <tr>
+<td class="lineNumber">5</td><td class="equal">if&nbsp;(NOT&nbsp;CMAKE_BUILD_TYPE&nbsp;AND&nbsp;NOT&nbsp;CMAKE_CONFIGURATION_TYPES)</td><td class="lineNumber">10</td><td class="equal">if&nbsp;(NOT&nbsp;CMAKE_BUILD_TYPE&nbsp;AND&nbsp;NOT&nbsp;CMAKE_CONFIGURATION_TYPES)</td>
+      </tr>
+      <tr>
+<td class="lineNumber">6</td><td class="equal">&nbsp;&nbsp;message(STATUS&nbsp;&quot;No&nbsp;build&nbsp;type&nbsp;selected,&nbsp;default&nbsp;to&nbsp;Debug&quot;)</td><td class="lineNumber">11</td><td class="equal">&nbsp;&nbsp;message(STATUS&nbsp;&quot;No&nbsp;build&nbsp;type&nbsp;selected,&nbsp;default&nbsp;to&nbsp;Debug&quot;)</td>
+      </tr>
+      <tr>
+<td class="lineNumber">7</td><td class="equal">&nbsp;&nbsp;set(CMAKE_BUILD_TYPE&nbsp;&quot;Debug&quot;)</td><td class="lineNumber">12</td><td class="equal">&nbsp;&nbsp;set(CMAKE_BUILD_TYPE&nbsp;&quot;Debug&quot;)</td>
+      </tr>
+      <tr>
+<td class="lineNumber">8</td><td class="equal">endif()</td><td class="lineNumber">13</td><td class="equal">endif()</td>
+      </tr>
+      <tr>
+<td class="lineNumber">9</td><td class="equal"></td><td class="lineNumber">14</td><td class="equal"></td>
+      </tr>
+      <tr>
+<td class="lineNumber">10</td><td class="equal">if(POLICY&nbsp;CMP0022)</td><td class="lineNumber">15</td><td class="equal">if(POLICY&nbsp;CMP0022)</td>
+      </tr>
+      <tr>
+<td class="lineNumber">11</td><td class="equal">&nbsp;&nbsp;cmake_policy(SET&nbsp;CMP0022&nbsp;NEW)&nbsp;#&nbsp;automatic&nbsp;when&nbsp;2.8.12&nbsp;is&nbsp;required</td><td class="lineNumber">16</td><td class="equal">&nbsp;&nbsp;cmake_policy(SET&nbsp;CMP0022&nbsp;NEW)&nbsp;#&nbsp;automatic&nbsp;when&nbsp;2.8.12&nbsp;is&nbsp;required</td>
+      </tr>
+      <tr>
+<td class="lineNumber">12</td><td class="equal">endif()</td><td class="lineNumber">17</td><td class="equal">endif()</td>
+      </tr>
+      <tr>
+<td class="lineNumber"></td><td class="equal">...</td><td class="lineNumber"></td><td class="equal">...</td>
+      </tr>
+  </table>
+</body>
