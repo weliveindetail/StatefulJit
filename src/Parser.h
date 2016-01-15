@@ -64,26 +64,26 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr()
 
 // ----------------------------------------------------------------------------
 
-/// varexpr ::= 'var' identifier ('=' expression)?
-//                    (',' identifier ('=' expression)?)* 'in' expression
-static std::unique_ptr<ExprAST> ParseVarExpr() 
+/// varexpr ::= 'def' identifier ('=' expression)?
+//               (',' identifier ('=' expression)?)* 'run' expression
+static std::unique_ptr<ExprAST> ParseVarDefinitionsExpr()
 {
-  getNextToken(); // eat the var.
+  getNextToken(); // eat the def
 
   std::vector<std::pair<std::string, std::unique_ptr<ExprAST>>> VarNames;
 
-  // At least one variable name is required.
+  // At least one variable name is required
   if (CurTok != tok_identifier)
-    return Error("expected identifier after var");
+    return Error("expected identifier after def");
 
   while (1) {
     std::string Name = IdentifierStr;
-    getNextToken(); // eat identifier.
+    getNextToken(); // eat identifier
 
-                    // Read the optional initializer.
+    // Read the optional initializer
     std::unique_ptr<ExprAST> Init = nullptr;
     if (CurTok == '=') {
-      getNextToken(); // eat the '='.
+      getNextToken(); // eat the '='
 
       Init = ParseExpression();
       if (!Init)
@@ -92,19 +92,19 @@ static std::unique_ptr<ExprAST> ParseVarExpr()
 
     VarNames.push_back(std::make_pair(Name, std::move(Init)));
 
-    // End of var list, exit loop.
+    // End of var list, exit loop
     if (CurTok != ',')
       break;
-    getNextToken(); // eat the ','.
+    getNextToken(); // eat the ','
 
     if (CurTok != tok_identifier)
-      return Error("expected identifier list after var");
+      return Error("expected identifier list after def");
   }
 
-  // At this point, we have to have 'in'.
-  if (CurTok != tok_in)
-    return Error("expected 'in' keyword after 'var'");
-  getNextToken(); // eat 'in'.
+  // At this point, we have to have 'run'
+  if (CurTok != tok_execute)
+    return Error("expected 'run' keyword after 'def'");
+  getNextToken(); // eat 'run'
 
   auto Body = ParseExpression();
   if (!Body)
@@ -127,8 +127,8 @@ static std::unique_ptr<ExprAST> ParsePrimary()
       return ParseIdentifierExpr();
     case tok_number:
       return ParseNumberExpr();
-    case tok_var:
-      return ParseVarExpr();
+    case tok_variables:
+      return ParseVarDefinitionsExpr();
     default:
       return Error("unknown token when expecting an expression");
   }

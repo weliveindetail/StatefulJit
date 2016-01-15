@@ -66,7 +66,7 @@ public:
 
 // ----------------------------------------------------------------------------
 
-// Expression class for var/in
+// Expression class for def/run
 class VarExprAST : public ExprAST 
 {
   std::vector<std::pair<std::string, std::unique_ptr<ExprAST>>> VarNames;

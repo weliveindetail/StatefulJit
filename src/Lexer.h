@@ -13,9 +13,9 @@ enum Token {
   tok_identifier = -2,
   tok_number = -3,
 
-  // var definition
-  tok_var = -4,
-  tok_in = -5
+  // section definition
+  tok_variables = -4,
+  tok_execute = -5
 };
 
 static std::string IdentifierStr; // Filled in if tok_identifier
@@ -55,11 +55,11 @@ static int gettok() {
     while (isalnum((LastChar = advance())))
       IdentifierStr += LastChar;
 
-    if (IdentifierStr == "in")
-      return tok_in;
+    if (IdentifierStr == "run")
+      return tok_execute;
 
-    if (IdentifierStr == "var")
-      return tok_var;
+    if (IdentifierStr == "def")
+      return tok_variables;
 
     return tok_identifier;
   }
