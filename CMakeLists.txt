@@ -31,7 +31,6 @@ if(WIN32)
 
 	include(${LLVM_CONFIG_PATH})
 else()
-	set(LLVM_REQUIRES_RTTI ON)
 	find_package(LLVM REQUIRED)
 endif()
 
@@ -46,6 +45,12 @@ llvm_map_components_to_libnames(LLVM_LIBS
 ### allow stdint.h from the C99 standard, as LLVM needs it on Mac
 if(XCODE)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS")
+endif()
+
+### disable Runtime-type-info for Xcode projects
+if(XCODE)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+  set(GTEST_HAS_TR1_TUPLE OFF)
 endif()
 
 ### force static runtime libraries for msvc builds, as gtest needs it on Windows
