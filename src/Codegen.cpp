@@ -104,18 +104,18 @@ Value *VarDefinitionExprAST::codegen()
       return nullptr;
   }
 
-  Value* double_ptr = codegenStatefulVarExpr(VarName, initVal);
+  Value* double_ptr = codegenStatefulVarExpr(initVal);
   NamedValues[VarName] = double_ptr;
 }
 
 // ----------------------------------------------------------------------------
 
-Value* VarDefinitionExprAST::codegenStatefulVarExpr(std::string Name, Value* InitValue)
+Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
 {
   auto& C = getGlobalContext();
 
   // this is minimalistic! add: type, namespace, ..
-  int varId = JitCompiler->getOrCreateStatefulVariable(Name);
+  int varId = JitCompiler->getOrCreateStatefulVariable(VarName);
 
   if (JitCompiler->hasMemLocation(varId))
   {
@@ -130,7 +130,7 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(std::string Name, Value* Ini
 
     // cast pointer to double
     Type* ptrTy = Type::getDoublePtrTy(C);
-    Value* doublePtr = Builder.CreateBitCast(voidPtr, ptrTy, Name + "_ptr");
+    Value* doublePtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
 
     // overwrite previous value only if init is specified explicitly
     if (InitValue)
@@ -143,14 +143,14 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(std::string Name, Value* Ini
   else
   {
     // compile new variable allocation
-    Value* voidPtr = codegenAllocStatefulVarExpr(Name);
+    Value* voidPtr = codegenAllocStatefulVarExpr();
 
     // submit address to Jit
     codegenRegisterStatefulVarExpr(varId, voidPtr);
 
     // cast pointer to double
     Type* ptrTy = Type::getDoublePtrTy(C);
-    Value* doublePtr = Builder.CreateBitCast(voidPtr, ptrTy, Name + "_ptr");
+    Value* doublePtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
 
     // initialize implicitly if no explicit value provided
     if (!InitValue)
@@ -163,7 +163,7 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(std::string Name, Value* Ini
 
 // ----------------------------------------------------------------------------
 
-Value* VarDefinitionExprAST::codegenAllocStatefulVarExpr(std::string Name)
+Value* VarDefinitionExprAST::codegenAllocStatefulVarExpr()
 {
   auto& C = getGlobalContext();
   Module* M = Builder.GetInsertBlock()->getParent()->getParent();
@@ -177,7 +177,7 @@ Value* VarDefinitionExprAST::codegenAllocStatefulVarExpr(std::string Name)
 
   // compile call
   Constant* dataSize = ConstantExpr::getSizeOf(Type::getDoubleTy(C));
-  CallInst* mallocCall = CallInst::Create(mallocFn, dataSize, Name + "_void_ptr");
+  CallInst* mallocCall = CallInst::Create(mallocFn, dataSize, VarName + "_void_ptr");
   Builder.GetInsertBlock()->getInstList().push_back(mallocCall);
 
   return mallocCall; // the symbol the return value of malloc gets stored to

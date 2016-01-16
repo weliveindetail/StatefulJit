@@ -88,8 +88,8 @@ private:
   std::string VarName;
   std::unique_ptr<ExprAST> VarInit = nullptr;
 
-  llvm::Value* codegenStatefulVarExpr(std::string Name, llvm::Value* InitValue);
-  llvm::Value* codegenAllocStatefulVarExpr(std::string Name);
+  llvm::Value* codegenStatefulVarExpr(llvm::Value* InitValue);
+  llvm::Value* codegenAllocStatefulVarExpr();
   void codegenRegisterStatefulVarExpr(int VarId, llvm::Value* VoidPtr);
 };
 
