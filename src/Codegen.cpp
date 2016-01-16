@@ -288,6 +288,8 @@ void VarDefinitionExprAST::codegenRegisterStatefulVarExpr(int VarId, Value* Void
 
 Value *VarSectionExprAST::codegen()
 {
+  auto& C = getGlobalContext();
+
   // codegen stateful variables and init
   for (const auto& varDef : VarDefinitions)
   {
@@ -296,7 +298,11 @@ Value *VarSectionExprAST::codegen()
   }
 
   // codegen the function body and return its computation
-  return Body->codegen();
+  Value* result = Body->codegen();
+  Value* typedResult = 
+    VarDefinitionExprAST::codegenCastPrimitive(result, Type::getDoubleTy(C));
+
+  return typedResult;
 }
 
 // ----------------------------------------------------------------------------

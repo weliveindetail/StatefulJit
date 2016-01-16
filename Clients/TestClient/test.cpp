@@ -39,8 +39,8 @@ TEST(StatefulEvaluation, SingleVariable)
   EXPECT_EQ(1.0, Eval(*jit, "def double a=1 run a;"));
   EXPECT_EQ(1.0, Eval(*jit, "def double a   run a;"));
 
-  //EXPECT_EQ(2.0, Eval(*jit, "def int b=2 run b;"));
-  //EXPECT_EQ(2.0, Eval(*jit, "def int b   run b;"));
+  EXPECT_EQ(2.0, Eval(*jit, "def int b=2 run b;"));
+  EXPECT_EQ(2.0, Eval(*jit, "def int b   run b;"));
 }
 
 // ----------------------------------------------------------------------------
