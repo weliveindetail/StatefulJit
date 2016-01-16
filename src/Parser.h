@@ -64,41 +64,52 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr()
 
 // ----------------------------------------------------------------------------
 
-/// varexpr ::= 'def' identifier ('=' expression)?
-//               (',' identifier ('=' expression)?)* 'run' expression
-static std::unique_ptr<ExprAST> ParseVarDefinitionsExpr()
+/// varexpr ::= 'def' ('double'|'int') identifier ('=' expression)?
+//               (',' ('double'|'int') identifier ('=' expression)?)* 'run' expression
+static std::unique_ptr<ExprAST> ParseVarSectionExpr()
 {
   getNextToken(); // eat the def
 
-  std::vector<std::pair<std::string, std::unique_ptr<ExprAST>>> VarNames;
+  std::vector<VarSectionExprAST::Definition> VarDefs;
 
-  // At least one variable name is required
-  if (CurTok != tok_identifier)
-    return Error("expected identifier after def");
+  while (1) 
+  {
+    VarSectionExprAST::Definition thisDef;
 
-  while (1) {
-    std::string Name = IdentifierStr;
+    switch (CurTok)
+    {
+      case tok_double: thisDef.type = VarSectionExprAST::Types::Double; break;
+      case tok_int: thisDef.type = VarSectionExprAST::Types::Int; break;
+      default:
+        return Error("unknown token when expecting a type specifier");
+    }
+
+    getNextToken(); // eat the type specifier
+
+    if (CurTok != tok_identifier)
+      return Error("expected identifier after a type specifier");
+
+    thisDef.name = IdentifierStr;
     getNextToken(); // eat identifier
 
-    // Read the optional initializer
-    std::unique_ptr<ExprAST> Init = nullptr;
+    // read the optional initializer
     if (CurTok == '=') {
       getNextToken(); // eat the '='
 
-      Init = ParseExpression();
-      if (!Init)
+      thisDef.init = ParseExpression();
+      if (!thisDef.init)
         return nullptr;
     }
 
-    VarNames.push_back(std::make_pair(Name, std::move(Init)));
+    VarDefs.push_back(std::move(thisDef));
 
     // End of var list, exit loop
     if (CurTok != ',')
       break;
     getNextToken(); // eat the ','
 
-    if (CurTok != tok_identifier)
-      return Error("expected identifier list after def");
+    if (!(CurTok == tok_double || CurTok == tok_int))
+      return Error("expected another type specifier after ','");
   }
 
   // At this point, we have to have 'run'
@@ -110,7 +121,7 @@ static std::unique_ptr<ExprAST> ParseVarDefinitionsExpr()
   if (!Body)
     return nullptr;
 
-  return std::make_unique<VarExprAST>(std::move(VarNames), std::move(Body));
+  return std::make_unique<VarSectionExprAST>(std::move(VarDefs), std::move(Body));
 }
 
 // ----------------------------------------------------------------------------
@@ -128,7 +139,7 @@ static std::unique_ptr<ExprAST> ParsePrimary()
     case tok_number:
       return ParseNumberExpr();
     case tok_variables:
-      return ParseVarDefinitionsExpr();
+      return ParseVarSectionExpr();
     default:
       return Error("unknown token when expecting an expression");
   }

@@ -15,7 +15,11 @@ enum Token {
 
   // section definition
   tok_variables = -4,
-  tok_execute = -5
+  tok_execute = -5,
+
+  // variable types
+  tok_double = -6,
+  tok_int = -7
 };
 
 static std::string IdentifierStr; // Filled in if tok_identifier
@@ -60,6 +64,12 @@ static int gettok() {
 
     if (IdentifierStr == "def")
       return tok_variables;
+
+    if (IdentifierStr == "double")
+      return tok_double;
+
+    if (IdentifierStr == "int")
+      return tok_int;
 
     return tok_identifier;
   }

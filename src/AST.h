@@ -67,20 +67,34 @@ public:
 // ----------------------------------------------------------------------------
 
 // Expression class for def/run
-class VarExprAST : public ExprAST 
+class VarSectionExprAST : public ExprAST 
 {
-  std::vector<std::pair<std::string, std::unique_ptr<ExprAST>>> VarNames;
-  std::unique_ptr<ExprAST> Body;
-
 public:
-  VarExprAST(
-    std::vector<std::pair<std::string, std::unique_ptr<ExprAST>>> VarNames,
-    std::unique_ptr<ExprAST> Body)
-    : VarNames(std::move(VarNames)), Body(std::move(Body)) {}
+  enum class Types
+  {
+    Undefined,
+    Double,
+    Int
+  };
+
+  class Definition
+  {
+  public:
+    Types type;
+    std::string name;
+    std::unique_ptr<ExprAST> init = nullptr;
+  };
+
+  VarSectionExprAST(
+    std::vector<Definition> VarDefs, std::unique_ptr<ExprAST> Body)
+    : VarDefinitions(std::move(VarDefs)), Body(std::move(Body)) {}
 
   llvm::Value* codegen() override;
 
 private:
+  std::vector<Definition> VarDefinitions;
+  std::unique_ptr<ExprAST> Body;
+
   llvm::Value* codegenStatefulVarExpr(std::string Name, llvm::Value* InitValue);
   llvm::Value* codegenAllocStatefulVarExpr(std::string Name);
   void codegenRegisterStatefulVarExpr(int VarId, llvm::Value* VoidPtr);

@@ -91,13 +91,12 @@ Value *BinaryExprAST::codegen() {
 
 // ----------------------------------------------------------------------------
 
-Value *VarExprAST::codegen()
+Value *VarSectionExprAST::codegen()
 {
   // codegen stateful variables and init
-  for (auto& varNameExpr : VarNames)
+  for (Definition& varDef : VarDefinitions)
   {
-    std::string name = varNameExpr.first;
-    ExprAST *initExpr_rawptr = varNameExpr.second.get();
+    ExprAST *initExpr_rawptr = varDef.init.get();
 
     // keep nullptr if there is no explicit init expression
     Value *initVal = nullptr;
@@ -108,8 +107,8 @@ Value *VarExprAST::codegen()
         return nullptr;
     }
 
-    Value* double_ptr = codegenStatefulVarExpr(name, initVal);
-    NamedValues[name] = double_ptr;
+    Value* double_ptr = codegenStatefulVarExpr(varDef.name, initVal);
+    NamedValues[varDef.name] = double_ptr;
   }
 
   // codegen the function body and return its computation
@@ -118,7 +117,7 @@ Value *VarExprAST::codegen()
 
 // ----------------------------------------------------------------------------
 
-Value* VarExprAST::codegenStatefulVarExpr(std::string Name, Value* InitValue)
+Value* VarSectionExprAST::codegenStatefulVarExpr(std::string Name, Value* InitValue)
 {
   auto& C = getGlobalContext();
 
@@ -171,7 +170,7 @@ Value* VarExprAST::codegenStatefulVarExpr(std::string Name, Value* InitValue)
 
 // ----------------------------------------------------------------------------
 
-Value* VarExprAST::codegenAllocStatefulVarExpr(std::string Name)
+Value* VarSectionExprAST::codegenAllocStatefulVarExpr(std::string Name)
 {
   auto& C = getGlobalContext();
   Module* M = Builder.GetInsertBlock()->getParent()->getParent();
@@ -193,7 +192,7 @@ Value* VarExprAST::codegenAllocStatefulVarExpr(std::string Name)
 
 // ----------------------------------------------------------------------------
 
-void VarExprAST::codegenRegisterStatefulVarExpr(int VarId, Value* VoidPtr)
+void VarSectionExprAST::codegenRegisterStatefulVarExpr(int VarId, Value* VoidPtr)
 {
   auto& C = getGlobalContext();
   Module* M = Builder.GetInsertBlock()->getParent()->getParent();

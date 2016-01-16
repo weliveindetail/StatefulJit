@@ -35,12 +35,12 @@ TEST(StatefulEvaluation, SingleVariable)
   StaticInit();
   auto jit = SetupStatefulJit();
 
-  EXPECT_EQ(0.0, Eval(*jit, "def a   run a;"));
-  EXPECT_EQ(1.0, Eval(*jit, "def a=1 run a;"));
-  EXPECT_EQ(1.0, Eval(*jit, "def a   run a;"));
+  EXPECT_EQ(0.0, Eval(*jit, "def double a   run a;"));
+  EXPECT_EQ(1.0, Eval(*jit, "def double a=1 run a;"));
+  EXPECT_EQ(1.0, Eval(*jit, "def double a   run a;"));
 
-  EXPECT_EQ(2.0, Eval(*jit, "def b=2 run b;"));
-  EXPECT_EQ(2.0, Eval(*jit, "def b   run b;"));
+  EXPECT_EQ(2.0, Eval(*jit, "def int b=2 run b;"));
+  EXPECT_EQ(2.0, Eval(*jit, "def int b   run b;"));
 }
 
 // ----------------------------------------------------------------------------
@@ -50,9 +50,9 @@ TEST(StatefulEvaluation, MultiVariable)
   StaticInit();
   auto jit = SetupStatefulJit();
 
-  EXPECT_EQ(1.0, Eval(*jit, "def a=1    run a;"));
-  EXPECT_EQ(1.0, Eval(*jit, "def a, b   run a + b;"));
-  EXPECT_EQ(3.0, Eval(*jit, "def a, c=2 run a + c;"));
+  EXPECT_EQ(1.0, Eval(*jit, "def double a=1        run a;"));
+  EXPECT_EQ(1.0, Eval(*jit, "def double a, int b   run a + b;"));
+  EXPECT_EQ(3.0, Eval(*jit, "def double a, int c=2 run a + c;"));
 }
 
 // ----------------------------------------------------------------------------
