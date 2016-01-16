@@ -57,6 +57,19 @@ TEST(StatefulEvaluation, MultiVariable)
 
 // ----------------------------------------------------------------------------
 
+TEST(StatefulEvaluation, RespectPrimitiveTypes)
+{
+  StaticInit();
+  auto jit = SetupStatefulJit();
+
+  EXPECT_EQ(1.0, Eval(*jit, "def double a=1 run a;"));
+  EXPECT_EQ(1.0, Eval(*jit, "def double a   run a;")); // type match, reuse definition
+  EXPECT_EQ(0.0, Eval(*jit, "def int a      run a;")); // type mismatch, overwrite definition
+  EXPECT_EQ(0.0, Eval(*jit, "def double a   run a;")); // type mismatch, overwrite definition
+}
+
+// ----------------------------------------------------------------------------
+
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   int exitCode = RUN_ALL_TESTS();

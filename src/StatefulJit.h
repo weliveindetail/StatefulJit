@@ -7,6 +7,8 @@
 #include "llvm/ExecutionEngine/Orc/GlobalMappingLayer.h"
 #include "llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h"
 
+#include "AST.h"
+
 namespace llvm {
   namespace orc {
 
@@ -41,13 +43,25 @@ public:
 
   JITSymbol findSymbol(const std::string Name);
 
-  std::unordered_map<std::string, int> mapIdsByName;
+  struct VarDefinition
+  {
+    VarDefinition();
+    VarDefinition(VarDefinitionExprAST::Types type);
+
+    int NameId;
+    VarDefinitionExprAST::Types VarType;
+
+    static const int dummyInvalidInstanceId;
+    static int nextStatefulVariableInstanceId;
+  };
+
+  std::unordered_map<std::string, VarDefinition> mapDefsByName;
   std::unordered_map<int, void*> mapMemLocationsById;
 
   bool hasMemLocation(int varId);
   void* getMemLocation(int varId);
   void submitMemLocation(int varId, void* ptr);
-  int getOrCreateStatefulVariable(std::string name);
+  int getOrCreateStatefulVariable(std::string name, VarDefinitionExprAST::Types type);
 
 private:
   std::string mangle(const std::string &Name);
@@ -66,8 +80,6 @@ private:
   MappingLayer_t MappingLayer;
   std::vector<ModuleHandle_t> ModuleHandles;
   std::unique_ptr<TargetMachine> TM;
-
-  int statefulVariableNextId = 1;
 };
 
 // ----------------------------------------------------------------------------

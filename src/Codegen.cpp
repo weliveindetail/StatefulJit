@@ -114,8 +114,8 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
 {
   auto& C = getGlobalContext();
 
-  // this is minimalistic! add: type, namespace, ..
-  int varId = JitCompiler->getOrCreateStatefulVariable(VarName);
+  // this is minimalistic! still only global primitive variables
+  int varId = JitCompiler->getOrCreateStatefulVariable(VarName, VarType);
 
   if (JitCompiler->hasMemLocation(varId))
   {
