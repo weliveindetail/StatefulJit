@@ -70,7 +70,6 @@ int StatefulJit::getOrCreateStatefulVariable(std::string name,
   // overwrite
   {
     // old definition disappears, so we don't need it anymore
-    //delete mapMemLocationsById[it->second.NameId];
     mapMemLocationsById.erase(it->second.NameId);
 
     // new definition takes over the name slot with a new id
