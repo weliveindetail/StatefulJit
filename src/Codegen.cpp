@@ -91,33 +91,26 @@ Value *BinaryExprAST::codegen() {
 
 // ----------------------------------------------------------------------------
 
-Value *VarSectionExprAST::codegen()
+Value *VarDefinitionExprAST::codegen()
 {
-  // codegen stateful variables and init
-  for (Definition& varDef : VarDefinitions)
+  ExprAST *initExpr_rawptr = VarInit.get();
+
+  // keep nullptr if there is no explicit init expression
+  Value *initVal = nullptr;
+  if (initExpr_rawptr)
   {
-    ExprAST *initExpr_rawptr = varDef.init.get();
-
-    // keep nullptr if there is no explicit init expression
-    Value *initVal = nullptr;
-    if (initExpr_rawptr)
-    {
-      initVal = initExpr_rawptr->codegen();
-      if (!initVal)
-        return nullptr;
-    }
-
-    Value* double_ptr = codegenStatefulVarExpr(varDef.name, initVal);
-    NamedValues[varDef.name] = double_ptr;
+    initVal = initExpr_rawptr->codegen();
+    if (!initVal)
+      return nullptr;
   }
 
-  // codegen the function body and return its computation
-  return Body->codegen();
+  Value* double_ptr = codegenStatefulVarExpr(VarName, initVal);
+  NamedValues[VarName] = double_ptr;
 }
 
 // ----------------------------------------------------------------------------
 
-Value* VarSectionExprAST::codegenStatefulVarExpr(std::string Name, Value* InitValue)
+Value* VarDefinitionExprAST::codegenStatefulVarExpr(std::string Name, Value* InitValue)
 {
   auto& C = getGlobalContext();
 
@@ -170,7 +163,7 @@ Value* VarSectionExprAST::codegenStatefulVarExpr(std::string Name, Value* InitVa
 
 // ----------------------------------------------------------------------------
 
-Value* VarSectionExprAST::codegenAllocStatefulVarExpr(std::string Name)
+Value* VarDefinitionExprAST::codegenAllocStatefulVarExpr(std::string Name)
 {
   auto& C = getGlobalContext();
   Module* M = Builder.GetInsertBlock()->getParent()->getParent();
@@ -192,7 +185,7 @@ Value* VarSectionExprAST::codegenAllocStatefulVarExpr(std::string Name)
 
 // ----------------------------------------------------------------------------
 
-void VarSectionExprAST::codegenRegisterStatefulVarExpr(int VarId, Value* VoidPtr)
+void VarDefinitionExprAST::codegenRegisterStatefulVarExpr(int VarId, Value* VoidPtr)
 {
   auto& C = getGlobalContext();
   Module* M = Builder.GetInsertBlock()->getParent()->getParent();
@@ -216,6 +209,21 @@ void VarSectionExprAST::codegenRegisterStatefulVarExpr(int VarId, Value* VoidPtr
   ArrayRef<Value*> params({ varIdConst, VoidPtr });
   CallInst* setMemLocationCall = CallInst::Create(submitMemLocFn, params);
   Builder.GetInsertBlock()->getInstList().push_back(setMemLocationCall);
+}
+
+// ----------------------------------------------------------------------------
+
+Value *VarSectionExprAST::codegen()
+{
+  // codegen stateful variables and init
+  for (const auto& varDef : VarDefinitions)
+  {
+    //assert(isa<std::unique_ptr<VarDefinitionExprAST>>(varDef));
+    varDef->codegen();
+  }
+
+  // codegen the function body and return its computation
+  return Body->codegen();
 }
 
 // ----------------------------------------------------------------------------

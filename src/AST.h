@@ -38,7 +38,7 @@ public:
 
 // ----------------------------------------------------------------------------
 
-// Expression class for referencing a variable, like "a"
+// Expression class for referencing a variable
 class VariableExprAST : public ExprAST 
 {
   std::string Name;
@@ -66,8 +66,8 @@ public:
 
 // ----------------------------------------------------------------------------
 
-// Expression class for def/run
-class VarSectionExprAST : public ExprAST 
+// Expression class for defining a variable
+class VarDefinitionExprAST : public ExprAST
 {
 public:
   enum class Types
@@ -77,27 +77,37 @@ public:
     Int
   };
 
-  class Definition
-  {
-  public:
-    Types type;
-    std::string name;
-    std::unique_ptr<ExprAST> init = nullptr;
-  };
+  VarDefinitionExprAST(
+    Types type, std::string name, std::unique_ptr<ExprAST> init)
+    : VarType(type), VarName(std::move(name)), VarInit(std::move(init)) {}
 
+  llvm::Value* codegen() override;
+
+private:
+  Types VarType;
+  std::string VarName;
+  std::unique_ptr<ExprAST> VarInit = nullptr;
+
+  llvm::Value* codegenStatefulVarExpr(std::string Name, llvm::Value* InitValue);
+  llvm::Value* codegenAllocStatefulVarExpr(std::string Name);
+  void codegenRegisterStatefulVarExpr(int VarId, llvm::Value* VoidPtr);
+};
+
+// ----------------------------------------------------------------------------
+
+// Expression class for def/run
+class VarSectionExprAST : public ExprAST 
+{
+public:
   VarSectionExprAST(
-    std::vector<Definition> VarDefs, std::unique_ptr<ExprAST> Body)
+    std::vector<std::unique_ptr<ExprAST>> VarDefs, std::unique_ptr<ExprAST> Body)
     : VarDefinitions(std::move(VarDefs)), Body(std::move(Body)) {}
 
   llvm::Value* codegen() override;
 
 private:
-  std::vector<Definition> VarDefinitions;
+  std::vector<std::unique_ptr<ExprAST>> VarDefinitions;
   std::unique_ptr<ExprAST> Body;
-
-  llvm::Value* codegenStatefulVarExpr(std::string Name, llvm::Value* InitValue);
-  llvm::Value* codegenAllocStatefulVarExpr(std::string Name);
-  void codegenRegisterStatefulVarExpr(int VarId, llvm::Value* VoidPtr);
 };
 
 // ----------------------------------------------------------------------------

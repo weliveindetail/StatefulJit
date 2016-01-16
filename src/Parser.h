@@ -64,44 +64,52 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr()
 
 // ----------------------------------------------------------------------------
 
-/// varexpr ::= 'def' ('double'|'int') identifier ('=' expression)?
-//               (',' ('double'|'int') identifier ('=' expression)?)* 'run' expression
+/// vardef ::= ('double'|'int') identifier ('=' expression)?
+static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
+{
+  VarDefinitionExprAST::Types type;
+
+  switch (CurTok)
+  {
+    case tok_double: type = VarDefinitionExprAST::Types::Double; break;
+    case tok_int: type = VarDefinitionExprAST::Types::Int; break;
+    default:
+      return Error("unknown token when expecting a type specifier");
+  }
+
+  getNextToken(); // eat the type specifier
+  if (CurTok != tok_identifier)
+    return Error("expected identifier after a type specifier");
+
+  std::string name = IdentifierStr;
+  getNextToken(); // eat identifier
+
+  // read the optional initializer
+  std::unique_ptr<ExprAST> init = nullptr;
+  if (CurTok == '=') {
+    getNextToken(); // eat the '='
+
+    init = ParseExpression();
+    if (!init)
+      return nullptr;
+  }
+
+  return std::make_unique<VarDefinitionExprAST>(type, std::move(name), std::move(init));
+}
+
+// ----------------------------------------------------------------------------
+
+/// varexpr ::= 'def' vardef (',' vardef)* 'run' expression
 static std::unique_ptr<ExprAST> ParseVarSectionExpr()
 {
   getNextToken(); // eat the def
 
-  std::vector<VarSectionExprAST::Definition> VarDefs;
+  std::vector<std::unique_ptr<ExprAST>> VarDefs;
 
   while (1) 
   {
-    VarSectionExprAST::Definition thisDef;
-
-    switch (CurTok)
-    {
-      case tok_double: thisDef.type = VarSectionExprAST::Types::Double; break;
-      case tok_int: thisDef.type = VarSectionExprAST::Types::Int; break;
-      default:
-        return Error("unknown token when expecting a type specifier");
-    }
-
-    getNextToken(); // eat the type specifier
-
-    if (CurTok != tok_identifier)
-      return Error("expected identifier after a type specifier");
-
-    thisDef.name = IdentifierStr;
-    getNextToken(); // eat identifier
-
-    // read the optional initializer
-    if (CurTok == '=') {
-      getNextToken(); // eat the '='
-
-      thisDef.init = ParseExpression();
-      if (!thisDef.init)
-        return nullptr;
-    }
-
-    VarDefs.push_back(std::move(thisDef));
+    std::unique_ptr<ExprAST> varDef = ParseVarDefinitionExpr();
+    VarDefs.push_back(std::move(varDef));
 
     // End of var list, exit loop
     if (CurTok != ',')
