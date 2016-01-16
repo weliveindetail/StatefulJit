@@ -83,6 +83,9 @@ public:
 
   llvm::Value* codegen() override;
 
+  static llvm::Value* codegenCastPrimitive(llvm::Value* val, llvm::Type* dstTy);
+  static llvm::Instruction::CastOps getOperationCastPrimitve(llvm::Type* srcTy, llvm::Type* dstTy);
+
 private:
   Types VarType;
   std::string VarName;
@@ -92,6 +95,7 @@ private:
   llvm::Value* codegenAllocStatefulVarExpr();
   llvm::Value* getPrimitiveDefaultInitValue();
   llvm::Type* getPrimitiveAllocType();
+
   void codegenRegisterStatefulVarExpr(int VarId, llvm::Value* VoidPtr);
 };
 

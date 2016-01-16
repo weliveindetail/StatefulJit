@@ -125,13 +125,15 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
     Value* voidPtr = ConstantExpr::getIntToPtr(addrAsInt, Type::getInt8PtrTy(C));
 
     // cast pointer to type
-    Type* ptrTy = PointerType::getUnqual(getPrimitiveAllocType());
+    Type* valTy = getPrimitiveAllocType();
+    Type* ptrTy = PointerType::getUnqual(valTy);
     Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
 
     // overwrite previous value only if init is specified explicitly
     if (InitValue)
     {
-      Builder.CreateStore(InitValue, typedPtr);
+      Value* typedInitValue = codegenCastPrimitive(InitValue, valTy);
+      Builder.CreateStore(typedInitValue, typedPtr);
     }
 
     return typedPtr;
@@ -145,14 +147,17 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
     codegenRegisterStatefulVarExpr(varId, voidPtr);
 
     // cast pointer to type
-    Type* ptrTy = PointerType::getUnqual(getPrimitiveAllocType());
+    Type* valTy = getPrimitiveAllocType();
+    Type* ptrTy = PointerType::getUnqual(valTy);
     Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
 
     // initialize implicitly if no explicit value provided
     if (!InitValue)
       InitValue = getPrimitiveDefaultInitValue();
 
-    Builder.CreateStore(InitValue, typedPtr);
+    Value* typedInitValue = codegenCastPrimitive(InitValue, valTy);
+    Builder.CreateStore(typedInitValue, typedPtr);
+
     return typedPtr;
   }
 }
@@ -182,6 +187,35 @@ Value* VarDefinitionExprAST::codegenAllocStatefulVarExpr()
 
 // ----------------------------------------------------------------------------
 
+Value* VarDefinitionExprAST::codegenCastPrimitive(Value* val, Type* dstTy)
+{
+  if (val->getType() == dstTy)
+    return val;
+
+  Instruction::CastOps op = getOperationCastPrimitve(val->getType(), dstTy);
+
+  CastInst* cast = CastInst::Create(op, val, dstTy);
+  Builder.GetInsertBlock()->getInstList().push_back(cast);
+
+  return cast;
+}
+
+// ----------------------------------------------------------------------------
+
+Instruction::CastOps VarDefinitionExprAST::getOperationCastPrimitve(Type* srcTy, Type* dstTy)
+{
+  if (srcTy->isDoubleTy() && dstTy->isIntegerTy())
+    return Instruction::FPToSI;
+
+  if (srcTy->isIntegerTy() && dstTy->isDoubleTy())
+    return Instruction::SIToFP;
+
+  assert(false && "Unknown type conversion");
+  return Instruction::BitCast;
+}
+
+// ----------------------------------------------------------------------------
+
 Type* VarDefinitionExprAST::getPrimitiveAllocType()
 {
   auto& C = getGlobalContext();
@@ -197,7 +231,7 @@ Type* VarDefinitionExprAST::getPrimitiveAllocType()
     return Type::getIntNTy(C, intBits);
   }
 
-  assert(VarType == Types::Undefined);
+  assert(VarType == Types::Undefined && "Cannot allocate undefined type");
   return nullptr;
 }
 
@@ -218,7 +252,7 @@ Value* VarDefinitionExprAST::getPrimitiveDefaultInitValue()
     return ConstantInt::get(C, APInt(intBits, 0, true));
   }
 
-  assert(VarType == Types::Undefined);
+  assert(VarType == Types::Undefined && "Cannot initialize undefined type");
   return nullptr;
 }
 
