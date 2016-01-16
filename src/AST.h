@@ -90,6 +90,8 @@ private:
 
   llvm::Value* codegenStatefulVarExpr(llvm::Value* InitValue);
   llvm::Value* codegenAllocStatefulVarExpr();
+  llvm::Value* getPrimitiveDefaultInitValue();
+  llvm::Type* getPrimitiveAllocType();
   void codegenRegisterStatefulVarExpr(int VarId, llvm::Value* VoidPtr);
 };
 

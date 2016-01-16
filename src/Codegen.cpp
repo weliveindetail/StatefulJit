@@ -73,19 +73,15 @@ Value *BinaryExprAST::codegen() {
     return nullptr;
 
   switch (Op) {
-  case '+':
-    return Builder.CreateFAdd(L, R, "addtmp");
-  case '-':
-    return Builder.CreateFSub(L, R, "subtmp");
-  case '*':
-    return Builder.CreateFMul(L, R, "multmp");
-  case '<':
-    L = Builder.CreateFCmpULT(L, R, "cmptmp");
-    // Convert bool 0/1 to double 0.0 or 1.0
-    return Builder.CreateUIToFP(L, Type::getDoubleTy(getGlobalContext()), "booltmp");
+    case '+':
+      return Builder.CreateFAdd(L, R, "addtmp");
+    case '-':
+      return Builder.CreateFSub(L, R, "subtmp");
+    case '*':
+      return Builder.CreateFMul(L, R, "multmp");
 
-  default:
-    return nullptr;
+    default:
+      return nullptr;
   }
 }
 
@@ -128,17 +124,17 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
     Constant* addrAsInt = ConstantInt::get(ptrAsIntTy, (int64_t)existingVoidPtr);
     Value* voidPtr = ConstantExpr::getIntToPtr(addrAsInt, Type::getInt8PtrTy(C));
 
-    // cast pointer to double
-    Type* ptrTy = Type::getDoublePtrTy(C);
-    Value* doublePtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
+    // cast pointer to type
+    Type* ptrTy = PointerType::getUnqual(getPrimitiveAllocType());
+    Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
 
     // overwrite previous value only if init is specified explicitly
     if (InitValue)
     {
-      Builder.CreateStore(InitValue, doublePtr);
+      Builder.CreateStore(InitValue, typedPtr);
     }
 
-    return doublePtr;
+    return typedPtr;
   }
   else
   {
@@ -148,16 +144,16 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
     // submit address to Jit
     codegenRegisterStatefulVarExpr(varId, voidPtr);
 
-    // cast pointer to double
-    Type* ptrTy = Type::getDoublePtrTy(C);
-    Value* doublePtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
+    // cast pointer to type
+    Type* ptrTy = PointerType::getUnqual(getPrimitiveAllocType());
+    Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
 
     // initialize implicitly if no explicit value provided
     if (!InitValue)
-      InitValue = ConstantFP::get(C, APFloat(0.0));
+      InitValue = getPrimitiveDefaultInitValue();
 
-    Builder.CreateStore(InitValue, doublePtr);
-    return doublePtr;
+    Builder.CreateStore(InitValue, typedPtr);
+    return typedPtr;
   }
 }
 
@@ -176,11 +172,54 @@ Value* VarDefinitionExprAST::codegenAllocStatefulVarExpr()
   Value* mallocFn = M->getOrInsertFunction("malloc", mallocSig);
 
   // compile call
-  Constant* dataSize = ConstantExpr::getSizeOf(Type::getDoubleTy(C));
+  Type* allocTy = getPrimitiveAllocType();
+  Constant* dataSize = ConstantExpr::getSizeOf(allocTy);
   CallInst* mallocCall = CallInst::Create(mallocFn, dataSize, VarName + "_void_ptr");
   Builder.GetInsertBlock()->getInstList().push_back(mallocCall);
 
   return mallocCall; // the symbol the return value of malloc gets stored to
+}
+
+// ----------------------------------------------------------------------------
+
+Type* VarDefinitionExprAST::getPrimitiveAllocType()
+{
+  auto& C = getGlobalContext();
+
+  if (VarType == Types::Double)
+  {
+    return Type::getDoubleTy(C);
+  }
+
+  if (VarType == Types::Int)
+  {
+    int intBits = sizeof(int) * 8;
+    return Type::getIntNTy(C, intBits);
+  }
+
+  assert(VarType == Types::Undefined);
+  return nullptr;
+}
+
+// ----------------------------------------------------------------------------
+
+Value* VarDefinitionExprAST::getPrimitiveDefaultInitValue()
+{
+  auto& C = getGlobalContext();
+
+  if (VarType == Types::Double)
+  {
+    return ConstantFP::get(C, APFloat(0.0));
+  }
+
+  if (VarType == Types::Int)
+  {
+    int intBits = sizeof(int) * 8;
+    return ConstantInt::get(C, APInt(intBits, 0, true));
+  }
+
+  assert(VarType == Types::Undefined);
+  return nullptr;
 }
 
 // ----------------------------------------------------------------------------
