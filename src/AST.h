@@ -7,6 +7,7 @@
 #include <llvm/IR/Value.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/LLVMContext.h>
 
 namespace llvm {
   namespace orc {
@@ -22,6 +23,15 @@ class ExprAST
 public:
   virtual ~ExprAST() {}
   virtual llvm::Value *codegen() = 0;
+
+  static llvm::Value* codegenCastPrimitive(
+    llvm::Value* val,
+    llvm::Type* dstTy);
+
+private:
+  static llvm::Instruction::CastOps getOperationCastPrimitve(
+    llvm::Type* srcTy, 
+    llvm::Type* dstTy);
 };
 
 // ----------------------------------------------------------------------------
@@ -38,7 +48,7 @@ public:
 
 // ----------------------------------------------------------------------------
 
-// Expression class for referencing a variable, like "a"
+// Expression class for referencing a variable
 class VariableExprAST : public ExprAST 
 {
   std::string Name;
@@ -66,24 +76,52 @@ public:
 
 // ----------------------------------------------------------------------------
 
-// Expression class for var/in
-class VarExprAST : public ExprAST 
+// Expression class for defining a variable
+class VarDefinitionExprAST : public ExprAST
 {
-  std::vector<std::pair<std::string, std::unique_ptr<ExprAST>>> VarNames;
-  std::unique_ptr<ExprAST> Body;
-
 public:
-  VarExprAST(
-    std::vector<std::pair<std::string, std::unique_ptr<ExprAST>>> VarNames,
-    std::unique_ptr<ExprAST> Body)
-    : VarNames(std::move(VarNames)), Body(std::move(Body)) {}
+  VarDefinitionExprAST(
+    llvm::Type* type, std::string name, std::unique_ptr<ExprAST> init)
+    : VarTy(type), VarName(std::move(name)), VarInit(std::move(init)) {}
+
+  llvm::Value* codegen() override;
+
+  static llvm::Type* getDoubleTy() {
+    return llvm::Type::getDoubleTy(llvm::getGlobalContext());
+  }
+
+  static llvm::Type* getIntTy() {
+    constexpr int intBits = sizeof(int) * 8;
+    return llvm::Type::getIntNTy(llvm::getGlobalContext(), intBits);
+  }
+
+private:
+  llvm::Type* VarTy;
+  std::string VarName;
+  std::unique_ptr<ExprAST> VarInit = nullptr;
+
+  llvm::Value* codegenStatefulVarExpr(llvm::Value* InitValue);
+  llvm::Value* codegenAllocStatefulVarExpr();
+  llvm::Value* getPrimitiveDefaultInitValue();
+
+  void codegenRegisterStatefulVarExpr(int VarId, llvm::Value* VoidPtr);
+};
+
+// ----------------------------------------------------------------------------
+
+// Expression class for def/run
+class VarSectionExprAST : public ExprAST 
+{
+public:
+  VarSectionExprAST(
+    std::vector<std::unique_ptr<ExprAST>> VarDefs, std::unique_ptr<ExprAST> Body)
+    : VarDefinitions(std::move(VarDefs)), Body(std::move(Body)) {}
 
   llvm::Value* codegen() override;
 
 private:
-  llvm::Value* codegenStatefulVarExpr(std::string Name, llvm::Value* InitValue);
-  llvm::Value* codegenAllocStatefulVarExpr(std::string Name);
-  void codegenRegisterStatefulVarExpr(int VarId, llvm::Value* VoidPtr);
+  std::vector<std::unique_ptr<ExprAST>> VarDefinitions;
+  std::unique_ptr<ExprAST> Body;
 };
 
 // ----------------------------------------------------------------------------

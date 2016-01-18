@@ -26,6 +26,7 @@ extern "C" void SubmitMemoryLocation(int varId, void* ptr)
 // ----------------------------------------------------------------------------
 
 Value *NumberExprAST::codegen() {
+  // Number literals are doubles
   return ConstantFP::get(getGlobalContext(), APFloat(Val));
 }
 
@@ -47,12 +48,10 @@ Value *BinaryExprAST::codegen() {
   // Special case '=' because we don't want to emit the LHS as an expression.
   if (Op == '=') {
     // Assignment requires the LHS to be an identifier.
-    // This assume we're building without RTTI because LLVM builds that way by
-    // default.  If you build LLVM with RTTI this can be changed to a
-    // dynamic_cast for automatic error checking.
     VariableExprAST *LHSE = static_cast<VariableExprAST *>(LHS.get());
     if (!LHSE)
       return ErrorV("destination of '=' must be a variable");
+
     // Codegen the RHS.
     Value *Val = RHS->codegen();
     if (!Val)
@@ -63,67 +62,71 @@ Value *BinaryExprAST::codegen() {
     if (item == NamedValues.end())
       return ErrorV("Unknown variable name");
 
-    Builder.CreateStore(Val, item->second);
+    Type* varTy = item->second->getType();
+    Value* typedValue = codegenCastPrimitive(Val, varTy);
+
+    Builder.CreateStore(typedValue, item->second);
     return Val;
   }
 
-  Value *L = LHS->codegen();
-  Value *R = RHS->codegen();
+  Value* L = LHS->codegen();
+  Value* R = RHS->codegen();
   if (!L || !R)
     return nullptr;
 
-  switch (Op) {
-  case '+':
-    return Builder.CreateFAdd(L, R, "addtmp");
-  case '-':
-    return Builder.CreateFSub(L, R, "subtmp");
-  case '*':
-    return Builder.CreateFMul(L, R, "multmp");
-  case '<':
-    L = Builder.CreateFCmpULT(L, R, "cmptmp");
-    // Convert bool 0/1 to double 0.0 or 1.0
-    return Builder.CreateUIToFP(L, Type::getDoubleTy(getGlobalContext()), "booltmp");
-
-  default:
-    return nullptr;
-  }
-}
-
-// ----------------------------------------------------------------------------
-
-Value *VarExprAST::codegen()
-{
-  // codegen stateful variables and init
-  for (auto& varNameExpr : VarNames)
+  if (L->getType()->isIntegerTy() && 
+      R->getType()->isIntegerTy())
   {
-    std::string name = varNameExpr.first;
-    ExprAST *initExpr_rawptr = varNameExpr.second.get();
-
-    // keep nullptr if there is no explicit init expression
-    Value *initVal = nullptr;
-    if (initExpr_rawptr)
-    {
-      initVal = initExpr_rawptr->codegen();
-      if (!initVal)
-        return nullptr;
+    switch (Op) {
+      case '+': return Builder.CreateAdd(L, R, "addtmp");
+      case '-': return Builder.CreateSub(L, R, "subtmp");
+      case '*': return Builder.CreateMul(L, R, "multmp");
+      default: return nullptr;
     }
-
-    Value* double_ptr = codegenStatefulVarExpr(name, initVal);
-    NamedValues[name] = double_ptr;
   }
+  else
+  {
+    auto& C = getGlobalContext();
+    Type* retTy = Type::getDoubleTy(C);
+    Value* typedL = codegenCastPrimitive(L, retTy);
+    Value* typedR = codegenCastPrimitive(R, retTy);
 
-  // codegen the function body and return its computation
-  return Body->codegen();
+    switch (Op) {
+      case '+': return Builder.CreateFAdd(typedL, typedR, "addtmp");
+      case '-': return Builder.CreateFSub(typedL, typedR, "subtmp");
+      case '*': return Builder.CreateFMul(typedL, typedR, "multmp");
+      default: return nullptr;
+    }
+  }
 }
 
 // ----------------------------------------------------------------------------
 
-Value* VarExprAST::codegenStatefulVarExpr(std::string Name, Value* InitValue)
+Value *VarDefinitionExprAST::codegen()
+{
+  ExprAST *initExpr_rawptr = VarInit.get();
+
+  // keep nullptr if there is no explicit init expression
+  Value *initVal = nullptr;
+  if (initExpr_rawptr)
+  {
+    initVal = initExpr_rawptr->codegen();
+    if (!initVal)
+      return nullptr;
+  }
+
+  Value* double_ptr = codegenStatefulVarExpr(initVal);
+  NamedValues[VarName] = double_ptr;
+}
+
+// ----------------------------------------------------------------------------
+
+Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
 {
   auto& C = getGlobalContext();
 
-  // this is minimalistic! add: type, namespace, ..
-  int varId = JitCompiler->getOrCreateStatefulVariable(Name);
+  // this is minimalistic! still only global primitive variables
+  int varId = JitCompiler->getOrCreateStatefulVariable(VarName, VarTy);
 
   if (JitCompiler->hasMemLocation(varId))
   {
@@ -136,42 +139,45 @@ Value* VarExprAST::codegenStatefulVarExpr(std::string Name, Value* InitValue)
     Constant* addrAsInt = ConstantInt::get(ptrAsIntTy, (int64_t)existingVoidPtr);
     Value* voidPtr = ConstantExpr::getIntToPtr(addrAsInt, Type::getInt8PtrTy(C));
 
-    // cast pointer to double
-    Type* ptrTy = Type::getDoublePtrTy(C);
-    Value* doublePtr = Builder.CreateBitCast(voidPtr, ptrTy, Name + "_ptr");
+    // cast pointer to type
+    Type* ptrTy = PointerType::getUnqual(VarTy);
+    Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
 
     // overwrite previous value only if init is specified explicitly
     if (InitValue)
     {
-      Builder.CreateStore(InitValue, doublePtr);
+      Value* typedInitValue = codegenCastPrimitive(InitValue, VarTy);
+      Builder.CreateStore(typedInitValue, typedPtr);
     }
 
-    return doublePtr;
+    return typedPtr;
   }
   else
   {
     // compile new variable allocation
-    Value* voidPtr = codegenAllocStatefulVarExpr(Name);
+    Value* voidPtr = codegenAllocStatefulVarExpr();
 
     // submit address to Jit
     codegenRegisterStatefulVarExpr(varId, voidPtr);
 
-    // cast pointer to double
-    Type* ptrTy = Type::getDoublePtrTy(C);
-    Value* doublePtr = Builder.CreateBitCast(voidPtr, ptrTy, Name + "_ptr");
+    // cast pointer to type
+    Type* ptrTy = PointerType::getUnqual(VarTy);
+    Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
 
     // initialize implicitly if no explicit value provided
     if (!InitValue)
-      InitValue = ConstantFP::get(C, APFloat(0.0));
+      InitValue = getPrimitiveDefaultInitValue();
 
-    Builder.CreateStore(InitValue, doublePtr);
-    return doublePtr;
+    Value* typedInitValue = codegenCastPrimitive(InitValue, VarTy);
+    Builder.CreateStore(typedInitValue, typedPtr);
+
+    return typedPtr;
   }
 }
 
 // ----------------------------------------------------------------------------
 
-Value* VarExprAST::codegenAllocStatefulVarExpr(std::string Name)
+Value* VarDefinitionExprAST::codegenAllocStatefulVarExpr()
 {
   auto& C = getGlobalContext();
   Module* M = Builder.GetInsertBlock()->getParent()->getParent();
@@ -184,8 +190,8 @@ Value* VarExprAST::codegenAllocStatefulVarExpr(std::string Name)
   Value* mallocFn = M->getOrInsertFunction("malloc", mallocSig);
 
   // compile call
-  Constant* dataSize = ConstantExpr::getSizeOf(Type::getDoubleTy(C));
-  CallInst* mallocCall = CallInst::Create(mallocFn, dataSize, Name + "_void_ptr");
+  Constant* dataSize = ConstantExpr::getSizeOf(VarTy);
+  CallInst* mallocCall = CallInst::Create(mallocFn, dataSize, VarName + "_void_ptr");
   Builder.GetInsertBlock()->getInstList().push_back(mallocCall);
 
   return mallocCall; // the symbol the return value of malloc gets stored to
@@ -193,7 +199,58 @@ Value* VarExprAST::codegenAllocStatefulVarExpr(std::string Name)
 
 // ----------------------------------------------------------------------------
 
-void VarExprAST::codegenRegisterStatefulVarExpr(int VarId, Value* VoidPtr)
+Value* ExprAST::codegenCastPrimitive(Value* val, Type* dstTy)
+{
+  if (val->getType() == dstTy)
+    return val;
+
+  Instruction::CastOps op = getOperationCastPrimitve(val->getType(), dstTy);
+
+  CastInst* cast = CastInst::Create(op, val, dstTy);
+  Builder.GetInsertBlock()->getInstList().push_back(cast);
+
+  return cast;
+}
+
+// ----------------------------------------------------------------------------
+
+Instruction::CastOps ExprAST::getOperationCastPrimitve(Type* srcTy, Type* dstTy)
+{
+  if (srcTy->isDoubleTy() && dstTy->isIntegerTy())
+    return Instruction::FPToSI;
+
+  if (srcTy->isIntegerTy() && dstTy->isDoubleTy())
+    return Instruction::SIToFP;
+
+  assert(false && "Unknown type conversion");
+  return Instruction::BitCast;
+}
+
+// ----------------------------------------------------------------------------
+
+Value* VarDefinitionExprAST::getPrimitiveDefaultInitValue()
+{
+  auto& C = getGlobalContext();
+
+  if (VarTy->isDoubleTy())
+  {
+    return ConstantFP::get(C, APFloat(0.0));
+  }
+
+  if (VarTy->isIntegerTy())
+  {
+    int intBits = sizeof(int) * 8;
+    return ConstantInt::get(C, APInt(intBits, 0, true));
+  }
+
+  assert(VarTy->isVoidTy());
+  assert(false && "Cannot initialize undefined type");
+  return nullptr;
+}
+
+// ----------------------------------------------------------------------------
+
+void VarDefinitionExprAST::codegenRegisterStatefulVarExpr(int VarId, Value* VoidPtr)
 {
   auto& C = getGlobalContext();
   Module* M = Builder.GetInsertBlock()->getParent()->getParent();
@@ -217,6 +274,26 @@ void VarExprAST::codegenRegisterStatefulVarExpr(int VarId, Value* VoidPtr)
   ArrayRef<Value*> params({ varIdConst, VoidPtr });
   CallInst* setMemLocationCall = CallInst::Create(submitMemLocFn, params);
   Builder.GetInsertBlock()->getInstList().push_back(setMemLocationCall);
+}
+
+// ----------------------------------------------------------------------------
+
+Value *VarSectionExprAST::codegen()
+{
+  auto& C = getGlobalContext();
+
+  // codegen stateful variables and init
+  for (const auto& varDef : VarDefinitions)
+  {
+    //assert(isa<std::unique_ptr<VarDefinitionExprAST>>(varDef));
+    varDef->codegen();
+  }
+
+  // codegen the function body and return its computation
+  Value* result = Body->codegen();
+  Value* typedResult = codegenCastPrimitive(result, Type::getDoubleTy(C));
+
+  return typedResult;
 }
 
 // ----------------------------------------------------------------------------

@@ -13,6 +13,11 @@ namespace llvm {
 
 // ----------------------------------------------------------------------------
 
+const int StatefulJit::VarDefinition::dummyInvalidInstanceId = 0;
+int StatefulJit::VarDefinition::nextStatefulVariableInstanceId = 0;
+
+// ----------------------------------------------------------------------------
+
 StatefulJit::StatefulJit(TargetMachine *targetMachine_rawptr)
   : TM(targetMachine_rawptr)
   , DL(targetMachine_rawptr->createDataLayout())
@@ -20,21 +25,60 @@ StatefulJit::StatefulJit(TargetMachine *targetMachine_rawptr)
   , MappingLayer(CompileLayer)
 {
   llvm::sys::DynamicLibrary::LoadLibraryPermanently(nullptr);
+  VarDefinition::nextStatefulVariableInstanceId = 1;
 }
 
 // ----------------------------------------------------------------------------
 
-int StatefulJit::getOrCreateStatefulVariable(std::string name)
+// default ctor for std::map
+StatefulJit::VarDefinition::VarDefinition()
+  : NameId(dummyInvalidInstanceId)
+  , VarTy(llvm::Type::getVoidTy(llvm::getGlobalContext()))
 {
-  if (mapIdsByName.find(name) == mapIdsByName.end())
-  {
-    int newNameId = statefulVariableNextId++;
+}
 
-    mapIdsByName[name] = newNameId;
-    mapMemLocationsById[newNameId] = nullptr;
+// ----------------------------------------------------------------------------
+
+StatefulJit::VarDefinition::VarDefinition(llvm::Type* ty)
+  : NameId(nextStatefulVariableInstanceId++), VarTy(ty)
+{
+}
+
+// ----------------------------------------------------------------------------
+
+int StatefulJit::getOrCreateStatefulVariable(std::string name, llvm::Type* ty)
+{
+  auto it = mapDefsByName.find(name);
+
+  // insert
+  if (it == mapDefsByName.end())
+  {
+    VarDefinition newVariable(ty);
+    mapDefsByName[name] = newVariable;
+    mapMemLocationsById[newVariable.NameId] = nullptr;
+
+    return newVariable.NameId;
   }
 
-  return mapIdsByName.at(name);
+  // reuse
+  VarDefinition& existingVariable = it->second;
+  if (it->second.VarTy == ty)
+  {
+    return it->second.NameId;
+  }
+
+  // overwrite
+  {
+    // old definition disappears, so we don't need it anymore
+    mapMemLocationsById.erase(it->second.NameId);
+
+    // new definition takes over the name slot with a new id
+    VarDefinition replacingVariable(ty);
+    mapDefsByName[name] = replacingVariable;
+    mapMemLocationsById[replacingVariable.NameId] = nullptr;
+
+    return replacingVariable.NameId;
+  }
 }
 
 bool StatefulJit::hasMemLocation(int varId)

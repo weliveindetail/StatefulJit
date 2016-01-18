@@ -3,9 +3,12 @@
 #include <string>
 #include <unordered_map>
 
-#include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
-#include "llvm/ExecutionEngine/Orc/GlobalMappingLayer.h"
-#include "llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h"
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/ExecutionEngine/Orc/IRCompileLayer.h>
+#include <llvm/ExecutionEngine/Orc/GlobalMappingLayer.h>
+#include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
+
+#include "AST.h"
 
 namespace llvm {
   namespace orc {
@@ -41,13 +44,25 @@ public:
 
   JITSymbol findSymbol(const std::string Name);
 
-  std::unordered_map<std::string, int> mapIdsByName;
+  struct VarDefinition
+  {
+    VarDefinition();
+    VarDefinition(llvm::Type* type);
+
+    int NameId;
+    llvm::Type* VarTy;
+
+    static const int dummyInvalidInstanceId;
+    static int nextStatefulVariableInstanceId;
+  };
+
+  std::unordered_map<std::string, VarDefinition> mapDefsByName;
   std::unordered_map<int, void*> mapMemLocationsById;
 
   bool hasMemLocation(int varId);
   void* getMemLocation(int varId);
   void submitMemLocation(int varId, void* ptr);
-  int getOrCreateStatefulVariable(std::string name);
+  int getOrCreateStatefulVariable(std::string name, llvm::Type* ty);
 
 private:
   std::string mangle(const std::string &Name);
@@ -66,8 +81,6 @@ private:
   MappingLayer_t MappingLayer;
   std::vector<ModuleHandle_t> ModuleHandles;
   std::unique_ptr<TargetMachine> TM;
-
-  int statefulVariableNextId = 1;
 };
 
 // ----------------------------------------------------------------------------
