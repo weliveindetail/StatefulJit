@@ -19,7 +19,8 @@ using llvm::legacy::FunctionPassManager;
 static void HandleTopLevelExpression(StatefulJit& jit)
 {
   // collect user input, parse AST and compile top-level function
-  auto jitSymbol = CompileTopLevelExpr(jit);
+  bool dumpIR = true;
+  auto jitSymbol = CompileTopLevelExpr(jit, dumpIR);
 
   // get address and reinterpret as function pointer
   double(*FP)() = (double(*)())(intptr_t)jitSymbol.getAddress();

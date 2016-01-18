@@ -53,7 +53,7 @@ static std::unique_ptr<Module> SetupModule(std::string moduleId, const StatefulJ
   return module;
 }
 
-static JITSymbol CompileTopLevelExpr(StatefulJit& jit)
+static JITSymbol CompileTopLevelExpr(StatefulJit& jit, bool dumpIR)
 {
   constexpr auto nameId = "__toplevel_expr";
 
@@ -67,7 +67,8 @@ static JITSymbol CompileTopLevelExpr(StatefulJit& jit)
   Function* toplevelFn = topLevelAst->codegen(jit, module_ptr.get(), nameId);
   assert(toplevelFn && "Code generation failed");
 
-  toplevelFn->dump();
+  if (dumpIR)
+    toplevelFn->dump();
 
   // JIT compile the owner module
   jit.addModule(std::move(module_ptr));

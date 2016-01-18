@@ -19,7 +19,8 @@ static double Eval(StatefulJit& jit, std::string code)
   getNextToken();
 
   // parse and compile top-level function
-  auto jitSymbol = CompileTopLevelExpr(jit);
+  bool dumpIR = false;
+  auto jitSymbol = CompileTopLevelExpr(jit, dumpIR);
 
   // get address and reinterpret as function pointer
   double(*FP)() = (double(*)())(intptr_t)jitSymbol.getAddress();
