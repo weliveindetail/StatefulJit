@@ -26,6 +26,7 @@ extern "C" void SubmitMemoryLocation(int varId, void* ptr)
 // ----------------------------------------------------------------------------
 
 Value *NumberExprAST::codegen() {
+  // Number literals are doubles
   return ConstantFP::get(getGlobalContext(), APFloat(Val));
 }
 
@@ -47,12 +48,10 @@ Value *BinaryExprAST::codegen() {
   // Special case '=' because we don't want to emit the LHS as an expression.
   if (Op == '=') {
     // Assignment requires the LHS to be an identifier.
-    // This assume we're building without RTTI because LLVM builds that way by
-    // default.  If you build LLVM with RTTI this can be changed to a
-    // dynamic_cast for automatic error checking.
     VariableExprAST *LHSE = static_cast<VariableExprAST *>(LHS.get());
     if (!LHSE)
       return ErrorV("destination of '=' must be a variable");
+
     // Codegen the RHS.
     Value *Val = RHS->codegen();
     if (!Val)
@@ -63,25 +62,41 @@ Value *BinaryExprAST::codegen() {
     if (item == NamedValues.end())
       return ErrorV("Unknown variable name");
 
-    Builder.CreateStore(Val, item->second);
+    Type* varTy = item->second->getType();
+    Value* typedValue = VarDefinitionExprAST::codegenCastPrimitive(Val, varTy);
+
+    Builder.CreateStore(typedValue, item->second);
     return Val;
   }
 
-  Value *L = LHS->codegen();
-  Value *R = RHS->codegen();
+  Value* L = LHS->codegen();
+  Value* R = RHS->codegen();
   if (!L || !R)
     return nullptr;
 
-  switch (Op) {
-    case '+':
-      return Builder.CreateFAdd(L, R, "addtmp");
-    case '-':
-      return Builder.CreateFSub(L, R, "subtmp");
-    case '*':
-      return Builder.CreateFMul(L, R, "multmp");
+  if (L->getType()->isIntegerTy() && 
+      R->getType()->isIntegerTy())
+  {
+    switch (Op) {
+      case '+': return Builder.CreateAdd(L, R, "addtmp");
+      case '-': return Builder.CreateSub(L, R, "subtmp");
+      case '*': return Builder.CreateMul(L, R, "multmp");
+      default: return nullptr;
+    }
+  }
+  else
+  {
+    auto& C = getGlobalContext();
+    Type* retTy = Type::getDoubleTy(C);
+    Value* typedL = VarDefinitionExprAST::codegenCastPrimitive(L, retTy);
+    Value* typedR = VarDefinitionExprAST::codegenCastPrimitive(R, retTy);
 
-    default:
-      return nullptr;
+    switch (Op) {
+      case '+': return Builder.CreateFAdd(typedL, typedR, "addtmp");
+      case '-': return Builder.CreateFSub(typedL, typedR, "subtmp");
+      case '*': return Builder.CreateFMul(typedL, typedR, "multmp");
+      default: return nullptr;
+    }
   }
 }
 

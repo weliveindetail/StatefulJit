@@ -51,8 +51,8 @@ TEST(StatefulEvaluation, MultiVariable)
   auto jit = SetupStatefulJit();
 
   EXPECT_EQ(1.0, Eval(*jit, "def double a=1        run a;"));
-  //EXPECT_EQ(1.0, Eval(*jit, "def double a, int b   run a + b;"));
-  //EXPECT_EQ(3.0, Eval(*jit, "def double a, int c=2 run a + c;"));
+  EXPECT_EQ(1.0, Eval(*jit, "def double a, int b   run a + b;"));
+  EXPECT_EQ(3.0, Eval(*jit, "def double a, int c=2 run a + c;"));
 }
 
 // ----------------------------------------------------------------------------
@@ -64,7 +64,7 @@ TEST(StatefulEvaluation, RespectPrimitiveTypes)
 
   EXPECT_EQ(1.0, Eval(*jit, "def double a=1 run a;"));
   EXPECT_EQ(1.0, Eval(*jit, "def double a   run a;")); // type match, reuse definition
-  EXPECT_EQ(0.0, Eval(*jit, "def int a, double b run b;")); // type mismatch, overwrite definition
+  EXPECT_EQ(0.0, Eval(*jit, "def int a      run a;")); // type mismatch, overwrite definition
   EXPECT_EQ(0.0, Eval(*jit, "def double a   run a;")); // type mismatch, overwrite definition
 }
 
