@@ -67,12 +67,12 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr()
 /// vardef ::= ('double'|'int') identifier ('=' expression)?
 static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
 {
-  VarDefinitionExprAST::Types type;
+  llvm::Type* type;
 
   switch (CurTok)
   {
-    case tok_double: type = VarDefinitionExprAST::Types::Double; break;
-    case tok_int: type = VarDefinitionExprAST::Types::Int; break;
+    case tok_double: type = VarDefinitionExprAST::getDoubleTy(); break;
+    case tok_int: type = VarDefinitionExprAST::getIntTy(); break;
     default:
       return Error("unknown token when expecting a type specifier");
   }

@@ -7,6 +7,7 @@
 #include <llvm/IR/Value.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/LLVMContext.h>
 
 namespace llvm {
   namespace orc {
@@ -79,28 +80,29 @@ public:
 class VarDefinitionExprAST : public ExprAST
 {
 public:
-  enum class Types
-  {
-    Undefined,
-    Double,
-    Int
-  };
-
   VarDefinitionExprAST(
-    Types type, std::string name, std::unique_ptr<ExprAST> init)
-    : VarType(type), VarName(std::move(name)), VarInit(std::move(init)) {}
+    llvm::Type* type, std::string name, std::unique_ptr<ExprAST> init)
+    : VarTy(type), VarName(std::move(name)), VarInit(std::move(init)) {}
 
   llvm::Value* codegen() override;
 
+  static llvm::Type* getDoubleTy() {
+    return llvm::Type::getDoubleTy(llvm::getGlobalContext());
+  }
+
+  static llvm::Type* getIntTy() {
+    constexpr int intBits = sizeof(int) * 8;
+    return llvm::Type::getIntNTy(llvm::getGlobalContext(), intBits);
+  }
+
 private:
-  Types VarType;
+  llvm::Type* VarTy;
   std::string VarName;
   std::unique_ptr<ExprAST> VarInit = nullptr;
 
   llvm::Value* codegenStatefulVarExpr(llvm::Value* InitValue);
   llvm::Value* codegenAllocStatefulVarExpr();
   llvm::Value* getPrimitiveDefaultInitValue();
-  llvm::Type* getPrimitiveAllocType();
 
   void codegenRegisterStatefulVarExpr(int VarId, llvm::Value* VoidPtr);
 };

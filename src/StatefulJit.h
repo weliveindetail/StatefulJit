@@ -3,9 +3,10 @@
 #include <string>
 #include <unordered_map>
 
-#include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
-#include "llvm/ExecutionEngine/Orc/GlobalMappingLayer.h"
-#include "llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h"
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/ExecutionEngine/Orc/IRCompileLayer.h>
+#include <llvm/ExecutionEngine/Orc/GlobalMappingLayer.h>
+#include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
 
 #include "AST.h"
 
@@ -46,10 +47,10 @@ public:
   struct VarDefinition
   {
     VarDefinition();
-    VarDefinition(VarDefinitionExprAST::Types type);
+    VarDefinition(llvm::Type* type);
 
     int NameId;
-    VarDefinitionExprAST::Types VarType;
+    llvm::Type* VarTy;
 
     static const int dummyInvalidInstanceId;
     static int nextStatefulVariableInstanceId;
@@ -61,7 +62,7 @@ public:
   bool hasMemLocation(int varId);
   void* getMemLocation(int varId);
   void submitMemLocation(int varId, void* ptr);
-  int getOrCreateStatefulVariable(std::string name, VarDefinitionExprAST::Types type);
+  int getOrCreateStatefulVariable(std::string name, llvm::Type* ty);
 
 private:
   std::string mangle(const std::string &Name);

@@ -126,7 +126,7 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
   auto& C = getGlobalContext();
 
   // this is minimalistic! still only global primitive variables
-  int varId = JitCompiler->getOrCreateStatefulVariable(VarName, VarType);
+  int varId = JitCompiler->getOrCreateStatefulVariable(VarName, VarTy);
 
   if (JitCompiler->hasMemLocation(varId))
   {
@@ -140,14 +140,13 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
     Value* voidPtr = ConstantExpr::getIntToPtr(addrAsInt, Type::getInt8PtrTy(C));
 
     // cast pointer to type
-    Type* valTy = getPrimitiveAllocType();
-    Type* ptrTy = PointerType::getUnqual(valTy);
+    Type* ptrTy = PointerType::getUnqual(VarTy);
     Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
 
     // overwrite previous value only if init is specified explicitly
     if (InitValue)
     {
-      Value* typedInitValue = codegenCastPrimitive(InitValue, valTy);
+      Value* typedInitValue = codegenCastPrimitive(InitValue, VarTy);
       Builder.CreateStore(typedInitValue, typedPtr);
     }
 
@@ -162,15 +161,14 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
     codegenRegisterStatefulVarExpr(varId, voidPtr);
 
     // cast pointer to type
-    Type* valTy = getPrimitiveAllocType();
-    Type* ptrTy = PointerType::getUnqual(valTy);
+    Type* ptrTy = PointerType::getUnqual(VarTy);
     Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
 
     // initialize implicitly if no explicit value provided
     if (!InitValue)
       InitValue = getPrimitiveDefaultInitValue();
 
-    Value* typedInitValue = codegenCastPrimitive(InitValue, valTy);
+    Value* typedInitValue = codegenCastPrimitive(InitValue, VarTy);
     Builder.CreateStore(typedInitValue, typedPtr);
 
     return typedPtr;
@@ -192,8 +190,7 @@ Value* VarDefinitionExprAST::codegenAllocStatefulVarExpr()
   Value* mallocFn = M->getOrInsertFunction("malloc", mallocSig);
 
   // compile call
-  Type* allocTy = getPrimitiveAllocType();
-  Constant* dataSize = ConstantExpr::getSizeOf(allocTy);
+  Constant* dataSize = ConstantExpr::getSizeOf(VarTy);
   CallInst* mallocCall = CallInst::Create(mallocFn, dataSize, VarName + "_void_ptr");
   Builder.GetInsertBlock()->getInstList().push_back(mallocCall);
 
@@ -231,43 +228,23 @@ Instruction::CastOps ExprAST::getOperationCastPrimitve(Type* srcTy, Type* dstTy)
 
 // ----------------------------------------------------------------------------
 
-Type* VarDefinitionExprAST::getPrimitiveAllocType()
-{
-  auto& C = getGlobalContext();
-
-  if (VarType == Types::Double)
-  {
-    return Type::getDoubleTy(C);
-  }
-
-  if (VarType == Types::Int)
-  {
-    int intBits = sizeof(int) * 8;
-    return Type::getIntNTy(C, intBits);
-  }
-
-  assert(VarType == Types::Undefined && "Cannot allocate undefined type");
-  return nullptr;
-}
-
-// ----------------------------------------------------------------------------
-
 Value* VarDefinitionExprAST::getPrimitiveDefaultInitValue()
 {
   auto& C = getGlobalContext();
 
-  if (VarType == Types::Double)
+  if (VarTy->isDoubleTy())
   {
     return ConstantFP::get(C, APFloat(0.0));
   }
 
-  if (VarType == Types::Int)
+  if (VarTy->isIntegerTy())
   {
     int intBits = sizeof(int) * 8;
     return ConstantInt::get(C, APInt(intBits, 0, true));
   }
 
-  assert(VarType == Types::Undefined && "Cannot initialize undefined type");
+  assert(VarTy->isVoidTy());
+  assert(false && "Cannot initialize undefined type");
   return nullptr;
 }
 

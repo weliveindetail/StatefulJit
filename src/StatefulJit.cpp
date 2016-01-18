@@ -32,28 +32,28 @@ StatefulJit::StatefulJit(TargetMachine *targetMachine_rawptr)
 
 // default ctor for std::map
 StatefulJit::VarDefinition::VarDefinition()
-  : NameId(dummyInvalidInstanceId), VarType(VarDefinitionExprAST::Types::Undefined)
+  : NameId(dummyInvalidInstanceId)
+  , VarTy(llvm::Type::getVoidTy(llvm::getGlobalContext()))
 {
 }
 
 // ----------------------------------------------------------------------------
 
-StatefulJit::VarDefinition::VarDefinition(VarDefinitionExprAST::Types type)
-  : NameId(nextStatefulVariableInstanceId++), VarType(type)
+StatefulJit::VarDefinition::VarDefinition(llvm::Type* ty)
+  : NameId(nextStatefulVariableInstanceId++), VarTy(ty)
 {
 }
 
 // ----------------------------------------------------------------------------
 
-int StatefulJit::getOrCreateStatefulVariable(std::string name,
-                                             VarDefinitionExprAST::Types type)
+int StatefulJit::getOrCreateStatefulVariable(std::string name, llvm::Type* ty)
 {
   auto it = mapDefsByName.find(name);
 
   // insert
   if (it == mapDefsByName.end())
   {
-    VarDefinition newVariable(type);
+    VarDefinition newVariable(ty);
     mapDefsByName[name] = newVariable;
     mapMemLocationsById[newVariable.NameId] = nullptr;
 
@@ -62,7 +62,7 @@ int StatefulJit::getOrCreateStatefulVariable(std::string name,
 
   // reuse
   VarDefinition& existingVariable = it->second;
-  if (it->second.VarType == type)
+  if (it->second.VarTy == ty)
   {
     return it->second.NameId;
   }
@@ -73,7 +73,7 @@ int StatefulJit::getOrCreateStatefulVariable(std::string name,
     mapMemLocationsById.erase(it->second.NameId);
 
     // new definition takes over the name slot with a new id
-    VarDefinition replacingVariable(type);
+    VarDefinition replacingVariable(ty);
     mapDefsByName[name] = replacingVariable;
     mapMemLocationsById[replacingVariable.NameId] = nullptr;
 
