@@ -63,7 +63,7 @@ Value *BinaryExprAST::codegen() {
       return ErrorV("Unknown variable name");
 
     Type* varTy = item->second->getType();
-    Value* typedValue = VarDefinitionExprAST::codegenCastPrimitive(Val, varTy);
+    Value* typedValue = codegenCastPrimitive(Val, varTy);
 
     Builder.CreateStore(typedValue, item->second);
     return Val;
@@ -88,8 +88,8 @@ Value *BinaryExprAST::codegen() {
   {
     auto& C = getGlobalContext();
     Type* retTy = Type::getDoubleTy(C);
-    Value* typedL = VarDefinitionExprAST::codegenCastPrimitive(L, retTy);
-    Value* typedR = VarDefinitionExprAST::codegenCastPrimitive(R, retTy);
+    Value* typedL = codegenCastPrimitive(L, retTy);
+    Value* typedR = codegenCastPrimitive(R, retTy);
 
     switch (Op) {
       case '+': return Builder.CreateFAdd(typedL, typedR, "addtmp");
@@ -202,7 +202,7 @@ Value* VarDefinitionExprAST::codegenAllocStatefulVarExpr()
 
 // ----------------------------------------------------------------------------
 
-Value* VarDefinitionExprAST::codegenCastPrimitive(Value* val, Type* dstTy)
+Value* ExprAST::codegenCastPrimitive(Value* val, Type* dstTy)
 {
   if (val->getType() == dstTy)
     return val;
@@ -217,7 +217,7 @@ Value* VarDefinitionExprAST::codegenCastPrimitive(Value* val, Type* dstTy)
 
 // ----------------------------------------------------------------------------
 
-Instruction::CastOps VarDefinitionExprAST::getOperationCastPrimitve(Type* srcTy, Type* dstTy)
+Instruction::CastOps ExprAST::getOperationCastPrimitve(Type* srcTy, Type* dstTy)
 {
   if (srcTy->isDoubleTy() && dstTy->isIntegerTy())
     return Instruction::FPToSI;
@@ -314,8 +314,7 @@ Value *VarSectionExprAST::codegen()
 
   // codegen the function body and return its computation
   Value* result = Body->codegen();
-  Value* typedResult = 
-    VarDefinitionExprAST::codegenCastPrimitive(result, Type::getDoubleTy(C));
+  Value* typedResult = codegenCastPrimitive(result, Type::getDoubleTy(C));
 
   return typedResult;
 }

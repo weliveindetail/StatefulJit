@@ -22,6 +22,15 @@ class ExprAST
 public:
   virtual ~ExprAST() {}
   virtual llvm::Value *codegen() = 0;
+
+  static llvm::Value* codegenCastPrimitive(
+    llvm::Value* val,
+    llvm::Type* dstTy);
+
+private:
+  static llvm::Instruction::CastOps getOperationCastPrimitve(
+    llvm::Type* srcTy, 
+    llvm::Type* dstTy);
 };
 
 // ----------------------------------------------------------------------------
@@ -82,9 +91,6 @@ public:
     : VarType(type), VarName(std::move(name)), VarInit(std::move(init)) {}
 
   llvm::Value* codegen() override;
-
-  static llvm::Value* codegenCastPrimitive(llvm::Value* val, llvm::Type* dstTy);
-  static llvm::Instruction::CastOps getOperationCastPrimitve(llvm::Type* srcTy, llvm::Type* dstTy);
 
 private:
   Types VarType;
