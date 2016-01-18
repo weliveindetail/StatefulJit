@@ -4,6 +4,14 @@ A minimal experimental Just-in-Time compiler that maintains variable state durin
 This may become interesting especially for 
 [live coding systems](https://en.wikipedia.org/wiki/Live_coding).
 
+## Table of Contents  
+* [Project Structure](#project-structure)
+* [Language Definition](#language-definition)
+* [Basic Example](#basic-example)
+* [Short-Term Goal](#short-term-goal)
+* [Build with CMake](#build-with-cmake)
+
+<a name="project-structure"/>
 ## Project Structure
 
 StatefulJit is a static library that contains the compiler and the execution engine. It defines 
@@ -11,6 +19,7 @@ a very basic API via the StatefulJitApi.h used by the two "client" projects Inte
 TestClient. The former is useful for playing around and debugging while the latter aims to 
 become a comprehensive test suite.
 
+<a name="language-definition"/>
 ## Language Definition
 
 The language used for this project is a subset of the original 
@@ -19,6 +28,7 @@ To keep focus and show the basic techniques, control flow and function definitio
 have been removed. Example programs are one-liners compiled into a single implicitly defined 
 top-level function. The generated code is executed immediately after the compilation finished.
 
+<a name="basic-example"/>
 ## Basic Example
 
 The following code is part of the TestClient gtest project. It shows how variable states survive 
@@ -39,6 +49,7 @@ variable's state. If it's successful (as here in the case of `a`) it maps the ne
 to the old location in memory. Otherwise it allocates new memory on the heap and compiles 
 the default initialization. For more examples have a look at [the gtest](https://github.com/weliveindetail/StatefulJit/blob/master/Clients/TestClient/test.cpp).
 
+<a name="short-term-goal"/>
 ## Short-Term Goal
 
 Currently the language only covers the primitive types `double` and `int`. As a next step in
@@ -57,7 +68,8 @@ basic constructs for type definitions available in typical general-purpose langu
   ));
 ```
 
-## Build Setup
+<a name="build-with-cmake"/>
+## Build with CMake
 
 Get CMake ready:
 * install the latest CMake for your operating system, you can [find it here](https://cmake.org/)
