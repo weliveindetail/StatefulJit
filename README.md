@@ -7,7 +7,7 @@ This may become interesting especially for
 ## Project Structure
 
 StatefulJit is a static library that contains the compiler and the execution engine. It defines 
-a very basic API via the StatefulPJ.h used by the two "client" projects InteractiveClient and 
+a very basic API via the StatefulJitApi.h used by the two "client" projects InteractiveClient and 
 TestClient. The former is useful for playing around and debugging while the latter aims to 
 become a comprehensive test suite.
 
@@ -19,7 +19,7 @@ To keep focus and show the basic techniques, control flow and function definitio
 have been removed. Example programs are one-liners compiled into a single implicitly defined 
 top-level function. The generated code is executed immediately after the compilation finished.
 
-## Example
+## Basic Example
 
 The following code is part of the TestClient gtest project. It shows how variable states survive 
 recompilation. It compiles and executes three programs in sequence on the same JIT and validates 
@@ -38,11 +38,6 @@ is the time to start searching for previous revisions of the variable's state. I
 successful (as here in the case of `a`) it maps the new variable to the old location in memory. 
 Otherwise it allocates new memory on the heap and compiles the default initialization.
 
-## Conceptual Requirements
-
-* variables must be allocated on the heap (obviously)
-* variable types must have a primitive constructor
-
 ## Build Setup
 
 Get CMake ready:
@@ -50,7 +45,7 @@ Get CMake ready:
 
 Get LLVM ready:
 * checkout the latest version of LLVM from [SVN trunk](http://llvm.org/svn/llvm-project/llvm/trunk) or the master branch of the [git mirror](https://github.com/llvm-mirror/llvm)
-* find the sources on disk and **patch the top-level CMakeLists.txt** as [shown here](https://rawgit.com/weliveindetail/StatefulJit/master/docs/patch-llvm-cmakelists.html)
+* **on Windows**, find the downloaded sources and **patch the top-level CMakeLists.txt** as [shown here](https://rawgit.com/weliveindetail/StatefulJit/master/docs/patch-llvm-cmakelists.html)
 * build and install LLVM with CMake as [described here](http://llvm.org/docs/CMake.html)
 
 Get the sources:
