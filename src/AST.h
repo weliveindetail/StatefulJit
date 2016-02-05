@@ -24,6 +24,10 @@ public:
   virtual ~ExprAST() {}
   virtual llvm::Value *codegen() = 0;
 
+  static bool isPrimitiveTypeName(std::string name);
+  static llvm::Type* getPrimitiveTypeLlvm(std::string name);
+  static llvm::Value* getPrimitiveDefaultInitValue(std::string name);
+
   static llvm::Value* codegenCastPrimitive(
     llvm::Value* val,
     llvm::Type* dstTy);
@@ -32,6 +36,14 @@ private:
   static llvm::Instruction::CastOps getOperationCastPrimitve(
     llvm::Type* srcTy, 
     llvm::Type* dstTy);
+
+  using TypeInfoMap_t = std::map<
+    std::string, 
+    std::pair<llvm::Type*, llvm::Value*>
+  >;
+
+  static TypeInfoMap_t makePrimitiveTypesLlvm();
+  static TypeInfoMap_t primitiveTypesLlvm;
 };
 
 // ----------------------------------------------------------------------------

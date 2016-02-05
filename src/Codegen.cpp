@@ -17,6 +17,55 @@ static std::map<std::string, Value *> NamedValues;
 
 // ----------------------------------------------------------------------------
 
+ExprAST::TypeInfoMap_t ExprAST::primitiveTypesLlvm = makePrimitiveTypesLlvm();
+
+// static
+ExprAST::TypeInfoMap_t ExprAST::makePrimitiveTypesLlvm()
+{
+  TypeInfoMap_t map;
+
+  auto& Ctx = getGlobalContext();
+  constexpr int intBits = sizeof(int) * 8;
+
+  // LLVM types
+  map["double"].first = llvm::Type::getDoubleTy(Ctx);
+  map["int"].first = llvm::Type::getIntNTy(Ctx, intBits);
+
+  // default init values
+  map["double"].second = ConstantFP::get(Ctx, APFloat(0.0));
+  map["int"].second = ConstantInt::get(Ctx, APInt(intBits, 0, true));
+
+  return map;
+}
+
+// ----------------------------------------------------------------------------
+
+// static
+bool ExprAST::isPrimitiveTypeName(std::string name)
+{
+  return (primitiveTypesLlvm.find(name) != primitiveTypesLlvm.end());
+}
+
+// ----------------------------------------------------------------------------
+
+// static
+llvm::Type* ExprAST::getPrimitiveTypeLlvm(std::string name)
+{
+  assert(isPrimitiveTypeName(name) && "Unknown primitve type name");
+  return primitiveTypesLlvm.at(name).first;
+}
+
+// ----------------------------------------------------------------------------
+
+// static
+Value* ExprAST::getPrimitiveDefaultInitValue(std::string name)
+{
+  assert(isPrimitiveTypeName(name) && "Unknown primitve type name");
+  return primitiveTypesLlvm.at(name).second;
+}
+
+// ----------------------------------------------------------------------------
+
 // called from compiled code
 extern "C" void SubmitMemoryLocation(int varId, void* ptr)
 {
