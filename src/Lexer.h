@@ -14,8 +14,15 @@ enum Token {
   tok_number = -3,
 
   // section definition
-  tok_variables = -4,
-  tok_execute = -5
+  tok_types = -4,
+  tok_variables = -5,
+  tok_execute = -6,
+
+  // type definition atomics
+  tok_colon = -7,
+  tok_struct = -8,
+  tok_brace_open = -9,
+  tok_brace_close = -10
 };
 
 static std::string IdentifierStr; // Filled in if tok_identifier
@@ -61,6 +68,12 @@ static int gettok() {
     if (IdentifierStr == "def")
       return tok_variables;
 
+    if (IdentifierStr == "types")
+      return tok_types;
+
+    if (IdentifierStr == "struct")
+      return tok_struct;
+
     return tok_identifier;
   }
 
@@ -73,6 +86,24 @@ static int gettok() {
 
     NumVal = strtod(NumStr.c_str(), nullptr);
     return tok_number;
+  }
+
+  if (LastChar == ':')
+  {
+    LastChar = advance();
+    return tok_colon;
+  }
+
+  if (LastChar == '{')
+  {
+    LastChar = advance();
+    return tok_brace_open;
+  }
+
+  if (LastChar == '}')
+  {
+    LastChar = advance();
+    return tok_brace_close;
   }
 
   // Check for end of file.  Don't eat the EOF.

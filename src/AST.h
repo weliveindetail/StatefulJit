@@ -93,14 +93,33 @@ public:
 class TypeDefinitionExprAST : public ExprAST
 {
 public:
-  TypeDefinitionExprAST(std::string name)
-    : TyName(std::move(name)) {}
+  TypeDefinitionExprAST(
+    std::string name, std::vector<std::unique_ptr<ExprAST>> members)
+    : TyName(std::move(name)), MemberDefs(std::move(members)) {}
 
   llvm::Value* codegen() override { return nullptr; }
   const std::string& getName() const { return TyName; }
 
 private:
   std::string TyName;
+  std::vector<std::unique_ptr<ExprAST>> MemberDefs;
+
+};
+
+// ----------------------------------------------------------------------------
+
+// Expression class for defining a sub-type
+class TypeMemberDefinitionExprAST : public ExprAST
+{
+public:
+  TypeMemberDefinitionExprAST(std::string name, TypeDefinitionExprAST* type)
+    : MemberName(std::move(name)), MemberTyDef(type) {}
+
+  llvm::Value* codegen() override { return nullptr; }
+
+private:
+  std::string MemberName;
+  TypeDefinitionExprAST* MemberTyDef;
 
 };
 
@@ -144,7 +163,9 @@ class TopLevelExprAST
 {
 public:
   void InitPrimitiveTypes();
+  TypeDefinitionExprAST* ResolveTypeDefinition(std::string name);
 
+  void ParseTypeSection();
   void ParseVarSection();
   void ParseBody();
 
