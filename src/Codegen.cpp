@@ -204,7 +204,7 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
   else
   {
     // compile new variable allocation
-    Value* voidPtr = codegenAllocStatefulVarExpr();
+    Value* voidPtr = codegenAlloc();
 
     // submit address to Jit
     codegenRegisterStatefulVarExpr(varId, voidPtr);
@@ -226,7 +226,7 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
 
 // ----------------------------------------------------------------------------
 
-Value* VarDefinitionExprAST::codegenAllocStatefulVarExpr()
+Value* VarDefinitionExprAST::codegenAlloc()
 {
   auto& C = getGlobalContext();
   Module* M = Builder.GetInsertBlock()->getParent()->getParent();

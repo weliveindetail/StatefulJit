@@ -81,8 +81,9 @@ class BinaryExprAST : public ExprAST
 
 public:
   BinaryExprAST(char Op, std::unique_ptr<ExprAST> LHS,
-    std::unique_ptr<ExprAST> RHS)
+                         std::unique_ptr<ExprAST> RHS)
     : Op(Op), LHS(std::move(LHS)), RHS(std::move(RHS)) {}
+
   llvm::Value *codegen() override;
 };
 
@@ -114,7 +115,7 @@ private:
   std::unique_ptr<ExprAST> VarInit = nullptr;
 
   llvm::Value* codegenStatefulVarExpr(llvm::Value* InitValue);
-  llvm::Value* codegenAllocStatefulVarExpr();
+  llvm::Value* codegenAlloc();
 
   void codegenRegisterStatefulVarExpr(int VarId, llvm::Value* VoidPtr);
 };
