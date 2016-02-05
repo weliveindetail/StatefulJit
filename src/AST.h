@@ -100,6 +100,26 @@ public:
   llvm::Value* codegen() override { return nullptr; }
   const std::string& getName() const { return TyName; }
 
+  llvm::Type* getTy() {
+    if (isPrimitiveTypeName(TyName)) {
+      return getPrimitiveTypeLlvm(TyName);
+    }
+    else {
+      assert(false && "Compound types not yet implemented");
+      return nullptr;
+    }
+  }
+
+  llvm::Value* getDefaultInitVal() {
+    if (isPrimitiveTypeName(TyName)) {
+      return getPrimitiveDefaultInitValue(TyName);
+    }
+    else {
+      assert(false && "Compound types not yet implemented");
+      return nullptr;
+    }
+  }
+
 private:
   std::string TyName;
   std::vector<std::unique_ptr<ExprAST>> MemberDefs;
@@ -130,24 +150,14 @@ class VarDefinitionExprAST : public ExprAST
 {
 public:
   VarDefinitionExprAST(
-    std::string type, std::string name, std::unique_ptr<ExprAST> init)
-    : VarTyName(type), VarName(std::move(name)), VarInit(std::move(init)) {}
+    std::string name, TypeDefinitionExprAST* type, std::unique_ptr<ExprAST> init)
+    : VarName(std::move(name)), VarTyDef(type), VarInit(std::move(init)) {}
 
   llvm::Value* codegen() override;
 
-  llvm::Type* getTy() {
-    if (isPrimitiveTypeName(VarTyName)) {
-      return getPrimitiveTypeLlvm(VarTyName);
-    }
-    else {
-      assert(false && "Compound types not yet implemented");
-      return nullptr;
-    }
-  }
-
 private:
   std::string VarName;
-  std::string VarTyName;
+  TypeDefinitionExprAST* VarTyDef;
   std::unique_ptr<ExprAST> VarInit = nullptr;
 
   llvm::Value* codegenStatefulVarExpr(llvm::Value* InitValue);

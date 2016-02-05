@@ -77,7 +77,14 @@ static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
   if (CurTok != tok_identifier)
     return Error("expected identifier for variable type");
 
-  std::string type = IdentifierStr;
+  TypeDefinitionExprAST* type_rawptr = resolveTypeHack(IdentifierStr);
+
+  if (!type_rawptr)
+  {
+    std::string msg = "unknown type '" + IdentifierStr + "'";
+    return Error(msg.c_str());
+  }
+
   getNextToken(); // eat the type name
 
   if (CurTok != tok_identifier)
@@ -96,7 +103,8 @@ static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
       return nullptr;
   }
 
-  return std::make_unique<VarDefinitionExprAST>(type, std::move(name), std::move(init));
+  return std::make_unique<VarDefinitionExprAST>(
+    std::move(name), type_rawptr, std::move(init));
 }
 
 // ----------------------------------------------------------------------------

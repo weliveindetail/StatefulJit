@@ -174,8 +174,10 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
 {
   auto& C = getGlobalContext();
 
+  Type* varTy = VarTyDef->getTy();
+
   // this is minimalistic! still only global primitive variables
-  int varId = JitCompiler->getOrCreateStatefulVariable(VarName, getTy());
+  int varId = JitCompiler->getOrCreateStatefulVariable(VarName, varTy);
 
   if (JitCompiler->hasMemLocation(varId))
   {
@@ -189,13 +191,13 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
     Value* voidPtr = ConstantExpr::getIntToPtr(addrAsInt, Type::getInt8PtrTy(C));
 
     // cast pointer to type
-    Type* ptrTy = PointerType::getUnqual(getTy());
+    Type* ptrTy = PointerType::getUnqual(varTy);
     Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
 
     // overwrite previous value only if init is specified explicitly
     if (InitValue)
     {
-      Value* typedInitValue = codegenCastPrimitive(InitValue, getTy());
+      Value* typedInitValue = codegenCastPrimitive(InitValue, varTy);
       Builder.CreateStore(typedInitValue, typedPtr);
     }
 
@@ -210,14 +212,14 @@ Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
     codegenRegisterStatefulVarExpr(varId, voidPtr);
 
     // cast pointer to type
-    Type* ptrTy = PointerType::getUnqual(getTy());
+    Type* ptrTy = PointerType::getUnqual(varTy);
     Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
 
     // initialize implicitly if no explicit value provided
     if (!InitValue)
-      InitValue = getPrimitiveDefaultInitValue(VarTyName);
+      InitValue = VarTyDef->getDefaultInitVal();
 
-    Value* typedInitValue = codegenCastPrimitive(InitValue, getTy());
+    Value* typedInitValue = codegenCastPrimitive(InitValue, varTy);
     Builder.CreateStore(typedInitValue, typedPtr);
 
     return typedPtr;
@@ -239,7 +241,7 @@ Value* VarDefinitionExprAST::codegenAlloc()
   Value* mallocFn = M->getOrInsertFunction("malloc", mallocSig);
 
   // compile call
-  Constant* dataSize = ConstantExpr::getSizeOf(getTy());
+  Constant* dataSize = ConstantExpr::getSizeOf(VarTyDef->getTy());
   CallInst* mallocCall = CallInst::Create(mallocFn, dataSize, VarName + "_void_ptr");
   Builder.GetInsertBlock()->getInstList().push_back(mallocCall);
 
