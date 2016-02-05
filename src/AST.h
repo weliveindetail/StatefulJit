@@ -89,6 +89,23 @@ public:
 
 // ----------------------------------------------------------------------------
 
+// Expression class for defining a type
+class TypeDefinitionExprAST : public ExprAST
+{
+public:
+  TypeDefinitionExprAST(std::string name)
+    : TyName(std::move(name)) {}
+
+  llvm::Value* codegen() override { return nullptr; }
+  const std::string& getName() const { return TyName; }
+
+private:
+  std::string TyName;
+
+};
+
+// ----------------------------------------------------------------------------
+
 // Expression class for defining a variable
 class VarDefinitionExprAST : public ExprAST
 {
@@ -126,6 +143,8 @@ private:
 class TopLevelExprAST
 {
 public:
+  void InitPrimitiveTypes();
+
   void ParseVarSection();
   void ParseBody();
 
@@ -135,6 +154,7 @@ public:
     std::string nameId);
 
 private:
+  std::vector<std::unique_ptr<TypeDefinitionExprAST>> TypeDefinitions;
   std::vector<std::unique_ptr<ExprAST>> VarDefinitions;
   std::unique_ptr<ExprAST> Body = nullptr;
 

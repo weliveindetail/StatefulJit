@@ -194,10 +194,25 @@ void TopLevelExprAST::ParseBody()
 
 // ----------------------------------------------------------------------------
 
+void TopLevelExprAST::InitPrimitiveTypes()
+{
+  assert(TypeDefinitions.empty());
+
+  auto* tyDouble = new TypeDefinitionExprAST("double");
+  TypeDefinitions.push_back(std::unique_ptr<TypeDefinitionExprAST>(tyDouble));
+
+  auto* tyInt = new TypeDefinitionExprAST("int");
+  TypeDefinitions.push_back(std::unique_ptr<TypeDefinitionExprAST>(tyInt));
+}
+
+// ----------------------------------------------------------------------------
+
 /// toplevelexpr ::= expression
 static std::unique_ptr<TopLevelExprAST> ParseTopLevelExpr() 
 {
   auto tlExpr = std::make_unique<TopLevelExprAST>();
+
+  tlExpr->InitPrimitiveTypes();
 
   if (CurTok == tok_variables)
   {
