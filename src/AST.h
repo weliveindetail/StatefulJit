@@ -93,28 +93,28 @@ class VarDefinitionExprAST : public ExprAST
 {
 public:
   VarDefinitionExprAST(
-    llvm::Type* type, std::string name, std::unique_ptr<ExprAST> init)
-    : VarTy(type), VarName(std::move(name)), VarInit(std::move(init)) {}
+    std::string type, std::string name, std::unique_ptr<ExprAST> init)
+    : VarTyName(type), VarName(std::move(name)), VarInit(std::move(init)) {}
 
   llvm::Value* codegen() override;
 
-  static llvm::Type* getDoubleTy() {
-    return llvm::Type::getDoubleTy(llvm::getGlobalContext());
-  }
-
-  static llvm::Type* getIntTy() {
-    constexpr int intBits = sizeof(int) * 8;
-    return llvm::Type::getIntNTy(llvm::getGlobalContext(), intBits);
+  llvm::Type* getTy() {
+    if (isPrimitiveTypeName(VarTyName)) {
+      return getPrimitiveTypeLlvm(VarTyName);
+    }
+    else {
+      assert(false && "Compound types not yet implemented");
+      return nullptr;
+    }
   }
 
 private:
-  llvm::Type* VarTy;
   std::string VarName;
+  std::string VarTyName;
   std::unique_ptr<ExprAST> VarInit = nullptr;
 
   llvm::Value* codegenStatefulVarExpr(llvm::Value* InitValue);
   llvm::Value* codegenAllocStatefulVarExpr();
-  llvm::Value* getPrimitiveDefaultInitValue();
 
   void codegenRegisterStatefulVarExpr(int VarId, llvm::Value* VoidPtr);
 };

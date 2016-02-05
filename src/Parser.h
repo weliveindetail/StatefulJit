@@ -67,22 +67,17 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr()
 /// vardef ::= ('double'|'int') identifier ('=' expression)?
 static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
 {
-  llvm::Type* type;
-
-  switch (CurTok)
-  {
-    case tok_double: type = VarDefinitionExprAST::getDoubleTy(); break;
-    case tok_int: type = VarDefinitionExprAST::getIntTy(); break;
-    default:
-      return Error("unknown token when expecting a type specifier");
-  }
-
-  getNextToken(); // eat the type specifier
   if (CurTok != tok_identifier)
-    return Error("expected identifier after a type specifier");
+    return Error("expected identifier for variable type");
+
+  std::string type = IdentifierStr;
+  getNextToken(); // eat the type name
+
+  if (CurTok != tok_identifier)
+    return Error("expected identifier for variable name");
 
   std::string name = IdentifierStr;
-  getNextToken(); // eat identifier
+  getNextToken(); // eat the variable name
 
   // read the optional initializer
   std::unique_ptr<ExprAST> init = nullptr;
@@ -181,8 +176,8 @@ void TopLevelExprAST::ParseVarSection()
       break;
 
     getNextToken(); // eat the ','
-    assert((CurTok == tok_double || CurTok == tok_int) &&
-           "expected another type specifier after ','");
+    assert(CurTok == tok_identifier &&
+           "expected next type specifier after ','");
   }
 
   assert(CurTok == tok_execute && "expected 'run' keyword after 'def'");
