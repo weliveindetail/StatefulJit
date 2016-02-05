@@ -24,10 +24,6 @@ public:
   virtual ~ExprAST() {}
   virtual llvm::Value *codegen() = 0;
 
-  static bool isPrimitiveTypeName(std::string name);
-  static llvm::Type* getPrimitiveTypeLlvm(std::string name);
-  static llvm::Value* getPrimitiveDefaultInitValue(std::string name);
-
   static llvm::Value* codegenCastPrimitive(
     llvm::Value* val,
     llvm::Type* dstTy);
@@ -36,14 +32,6 @@ private:
   static llvm::Instruction::CastOps getOperationCastPrimitve(
     llvm::Type* srcTy, 
     llvm::Type* dstTy);
-
-  using TypeInfoMap_t = std::map<
-    std::string, 
-    std::pair<llvm::Type*, llvm::Value*>
-  >;
-
-  static TypeInfoMap_t makePrimitiveTypesLlvm();
-  static TypeInfoMap_t primitiveTypesLlvm;
 };
 
 // ----------------------------------------------------------------------------
@@ -89,6 +77,24 @@ public:
 
 // ----------------------------------------------------------------------------
 
+class PrimitiveTypeLookup
+{
+  using TypeInfo_t = std::pair<llvm::Type*, llvm::Value*>;
+
+public:
+  PrimitiveTypeLookup();
+
+  bool hasName(std::string name) const;
+  llvm::Type* getTypeLlvm(std::string name) const;
+  llvm::Value* getDefaultInitValue(std::string name) const;
+
+private:
+  std::map<std::string, TypeInfo_t> Map;
+
+};
+
+// ----------------------------------------------------------------------------
+
 // Expression class for defining a type
 class TypeDefinitionExprAST : public ExprAST
 {
@@ -100,9 +106,9 @@ public:
   llvm::Value* codegen() override { return nullptr; }
   const std::string& getName() const { return TyName; }
 
-  llvm::Type* getTy() {
-    if (isPrimitiveTypeName(TyName)) {
-      return getPrimitiveTypeLlvm(TyName);
+  llvm::Type* getTy() const {
+    if (primitiveTypesLlvm.hasName(TyName)) {
+      return primitiveTypesLlvm.getTypeLlvm(TyName);
     }
     else {
       assert(false && "Compound types not yet implemented");
@@ -110,9 +116,9 @@ public:
     }
   }
 
-  llvm::Value* getDefaultInitVal() {
-    if (isPrimitiveTypeName(TyName)) {
-      return getPrimitiveDefaultInitValue(TyName);
+  llvm::Value* getDefaultInitVal() const {
+    if (primitiveTypesLlvm.hasName(TyName)) {
+      return primitiveTypesLlvm.getDefaultInitValue(TyName);
     }
     else {
       assert(false && "Compound types not yet implemented");
@@ -124,6 +130,7 @@ private:
   std::string TyName;
   std::vector<std::unique_ptr<ExprAST>> MemberDefs;
 
+  static const PrimitiveTypeLookup primitiveTypesLlvm;
 };
 
 // ----------------------------------------------------------------------------

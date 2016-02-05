@@ -14,54 +14,45 @@ using llvm::orc::StatefulJit;
 static StatefulJit* JitCompiler;
 static IRBuilder<> Builder(getGlobalContext());
 static std::map<std::string, Value *> NamedValues;
+const PrimitiveTypeLookup TypeDefinitionExprAST::primitiveTypesLlvm;
 
 // ----------------------------------------------------------------------------
 
-ExprAST::TypeInfoMap_t ExprAST::primitiveTypesLlvm = makePrimitiveTypesLlvm();
-
-// static
-ExprAST::TypeInfoMap_t ExprAST::makePrimitiveTypesLlvm()
+PrimitiveTypeLookup::PrimitiveTypeLookup()
 {
-  TypeInfoMap_t map;
-
   auto& Ctx = getGlobalContext();
   constexpr int intBits = sizeof(int) * 8;
 
   // LLVM types
-  map["double"].first = llvm::Type::getDoubleTy(Ctx);
-  map["int"].first = llvm::Type::getIntNTy(Ctx, intBits);
+  Map["double"].first = llvm::Type::getDoubleTy(Ctx);
+  Map["int"].first = llvm::Type::getIntNTy(Ctx, intBits);
 
   // default init values
-  map["double"].second = ConstantFP::get(Ctx, APFloat(0.0));
-  map["int"].second = ConstantInt::get(Ctx, APInt(intBits, 0, true));
-
-  return map;
+  Map["double"].second = ConstantFP::get(Ctx, APFloat(0.0));
+  Map["int"].second = ConstantInt::get(Ctx, APInt(intBits, 0, true));
 }
 
 // ----------------------------------------------------------------------------
 
-// static
-bool ExprAST::isPrimitiveTypeName(std::string name)
+bool PrimitiveTypeLookup::hasName(std::string name) const
 {
-  return (primitiveTypesLlvm.find(name) != primitiveTypesLlvm.end());
+  return (Map.find(name) != Map.end());
 }
 
 // ----------------------------------------------------------------------------
 
-// static
-llvm::Type* ExprAST::getPrimitiveTypeLlvm(std::string name)
+llvm::Type* PrimitiveTypeLookup::getTypeLlvm(std::string name) const
 {
-  assert(isPrimitiveTypeName(name) && "Unknown primitve type name");
-  return primitiveTypesLlvm.at(name).first;
+  assert(hasName(name) && "Unknown primitve type name");
+  return Map.at(name).first;
 }
 
 // ----------------------------------------------------------------------------
 
-// static
-Value* ExprAST::getPrimitiveDefaultInitValue(std::string name)
+Value* PrimitiveTypeLookup::getDefaultInitValue(std::string name) const
 {
-  assert(isPrimitiveTypeName(name) && "Unknown primitve type name");
-  return primitiveTypesLlvm.at(name).second;
+  assert(hasName(name) && "Unknown primitve type name");
+  return Map.at(name).second;
 }
 
 // ----------------------------------------------------------------------------
