@@ -31,6 +31,18 @@ static double Eval(StatefulJit& jit, std::string code)
 
 // ----------------------------------------------------------------------------
 
+TEST(LanguageFeatures, Minimal)
+{
+  StaticInit();
+  auto jit = SetupStatefulJit();
+
+  EXPECT_EQ(0.0, Eval(*jit, "run 0;"));
+  EXPECT_EQ(1.0, Eval(*jit, "run 1;"));
+  EXPECT_EQ(2.0, Eval(*jit, "run 3-2+1;"));
+}
+
+// ----------------------------------------------------------------------------
+
 TEST(LanguageFeatures, VariableInit)
 {
   StaticInit();

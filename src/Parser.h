@@ -99,41 +99,6 @@ static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
 
 // ----------------------------------------------------------------------------
 
-/// varexpr ::= 'def' vardef (',' vardef)* 'run' expression
-static std::unique_ptr<ExprAST> ParseVarSectionExpr()
-{
-  getNextToken(); // eat the def
-
-  std::vector<std::unique_ptr<ExprAST>> VarDefs;
-
-  while (1) 
-  {
-    std::unique_ptr<ExprAST> varDef = ParseVarDefinitionExpr();
-    VarDefs.push_back(std::move(varDef));
-
-    // End of var list, exit loop
-    if (CurTok != ',')
-      break;
-    getNextToken(); // eat the ','
-
-    if (!(CurTok == tok_double || CurTok == tok_int))
-      return Error("expected another type specifier after ','");
-  }
-
-  // At this point, we have to have 'run'
-  if (CurTok != tok_execute)
-    return Error("expected 'run' keyword after 'def'");
-  getNextToken(); // eat 'run'
-
-  auto Body = ParseExpression();
-  if (!Body)
-    return nullptr;
-
-  return std::make_unique<VarSectionExprAST>(std::move(VarDefs), std::move(Body));
-}
-
-// ----------------------------------------------------------------------------
-
 /// primary
 ///   ::= identifierexpr
 ///   ::= numberexpr
@@ -146,8 +111,6 @@ static std::unique_ptr<ExprAST> ParsePrimary()
       return ParseIdentifierExpr();
     case tok_number:
       return ParseNumberExpr();
-    case tok_variables:
-      return ParseVarSectionExpr();
     default:
       return Error("unknown token when expecting an expression");
   }
@@ -206,12 +169,45 @@ static std::unique_ptr<ExprAST> ParseExpression()
 
 // ----------------------------------------------------------------------------
 
+void TopLevelExprAST::ParseVarSection()
+{
+  getNextToken(); // eat the 'def'
+
+  while (1)
+  {
+    VarDefinitions.push_back(ParseVarDefinitionExpr());
+
+    if (CurTok != ',')
+      break;
+
+    getNextToken(); // eat the ','
+    assert((CurTok == tok_double || CurTok == tok_int) &&
+           "expected another type specifier after ','");
+  }
+
+  assert(CurTok == tok_execute && "expected 'run' keyword after 'def'");
+}
+
+// ----------------------------------------------------------------------------
+
+void TopLevelExprAST::ParseBody()
+{
+  getNextToken(); // eat the 'run'
+  Body = ParseExpression();
+}
+
+// ----------------------------------------------------------------------------
+
 /// toplevelexpr ::= expression
 static std::unique_ptr<TopLevelExprAST> ParseTopLevelExpr() 
 {
-  if (auto E = ParseExpression()) {
-    // Make an anonymous top-level expression.
-    return std::make_unique<TopLevelExprAST>(std::move(E));
+  auto tlExpr = std::make_unique<TopLevelExprAST>();
+
+  if (CurTok == tok_variables)
+  {
+    tlExpr->ParseVarSection();
   }
-  return nullptr;
+
+  tlExpr->ParseBody();
+  return tlExpr;
 }

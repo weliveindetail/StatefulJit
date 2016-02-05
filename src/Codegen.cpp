@@ -278,26 +278,6 @@ void VarDefinitionExprAST::codegenRegisterStatefulVarExpr(int VarId, Value* Void
 
 // ----------------------------------------------------------------------------
 
-Value *VarSectionExprAST::codegen()
-{
-  auto& C = getGlobalContext();
-
-  // codegen stateful variables and init
-  for (const auto& varDef : VarDefinitions)
-  {
-    //assert(isa<std::unique_ptr<VarDefinitionExprAST>>(varDef));
-    varDef->codegen();
-  }
-
-  // codegen the function body and return its computation
-  Value* result = Body->codegen();
-  Value* typedResult = codegenCastPrimitive(result, Type::getDoubleTy(C));
-
-  return typedResult;
-}
-
-// ----------------------------------------------------------------------------
-
 Function *TopLevelExprAST::codegen(StatefulJit& jit, 
                                    Module* module_rawptr, 
                                    std::string nameId) 
@@ -321,9 +301,19 @@ Function *TopLevelExprAST::codegen(StatefulJit& jit,
   BasicBlock *BB = BasicBlock::Create(C, "entry", topLevelFn);
   Builder.SetInsertPoint(BB);
 
+  // codegen stateful variables and init
+  for (const auto& varDef : VarDefinitions)
+  {
+    varDef->codegen();
+  }
+
+  // codegen Body
   if (Value* retVal = Body->codegen())
   {
-    Builder.CreateRet(retVal);
+    Type* retTy = Type::getDoubleTy(C);
+    Value* typedRetVal = ExprAST::codegenCastPrimitive(retVal, retTy);
+
+    Builder.CreateRet(typedRetVal);
     verifyFunction(*topLevelFn);
 
     topLevelFn->setName(nameId);

@@ -109,35 +109,20 @@ private:
 
 // ----------------------------------------------------------------------------
 
-// Expression class for def/run
-class VarSectionExprAST : public ExprAST 
-{
-public:
-  VarSectionExprAST(
-    std::vector<std::unique_ptr<ExprAST>> VarDefs, std::unique_ptr<ExprAST> Body)
-    : VarDefinitions(std::move(VarDefs)), Body(std::move(Body)) {}
-
-  llvm::Value* codegen() override;
-
-private:
-  std::vector<std::unique_ptr<ExprAST>> VarDefinitions;
-  std::unique_ptr<ExprAST> Body;
-};
-
-// ----------------------------------------------------------------------------
-
 // Expression class for top-level function definition
 class TopLevelExprAST
 {
-  std::unique_ptr<ExprAST> Body;
-
 public:
-  TopLevelExprAST(std::unique_ptr<ExprAST> Body) : Body(std::move(Body)) 
-  {
-  }
+  void ParseVarSection();
+  void ParseBody();
 
   llvm::Function *codegen(
     llvm::orc::StatefulJit& jit,
     llvm::Module* module_rawptr,
     std::string nameId);
+
+private:
+  std::vector<std::unique_ptr<ExprAST>> VarDefinitions;
+  std::unique_ptr<ExprAST> Body = nullptr;
+
 };
