@@ -182,8 +182,10 @@ static std::unique_ptr<ExprAST> ParseCompoundTypeDefinitionExpr()
     return Error("expected closing '}' after compound type definition");
 
   getNextToken(); // eat the brace
+
+  bool flagPrimitive = false;
   return std::make_unique<TypeDefinitionExprAST>(
-    std::move(name), std::move(memberDefs));
+    std::move(name), std::move(memberDefs), flagPrimitive);
 }
 
 // ----------------------------------------------------------------------------
@@ -317,11 +319,12 @@ void TopLevelExprAST::ParseBody()
 void TopLevelExprAST::InitPrimitiveTypes()
 {
   assert(TypeDefinitions.empty());
+  bool isPrimitive = true;
 
-  auto* tyDouble = new TypeDefinitionExprAST("double", {});
+  auto* tyDouble = new TypeDefinitionExprAST("double", {}, isPrimitive);
   TypeDefinitions.push_back(std::unique_ptr<TypeDefinitionExprAST>(tyDouble));
 
-  auto* tyInt = new TypeDefinitionExprAST("int", {});
+  auto* tyInt = new TypeDefinitionExprAST("int", {}, isPrimitive);
   TypeDefinitions.push_back(std::unique_ptr<TypeDefinitionExprAST>(tyInt));
 }
 

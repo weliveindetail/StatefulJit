@@ -104,9 +104,11 @@ class TypeDefinitionExprAST : public ExprAST
 
 public:
   TypeDefinitionExprAST(std::string name, 
-                        MemberDefs_t members)
+                        MemberDefs_t members,
+                        bool isPrimitive)
     : TyName(std::move(name))
-    , MemberDefs(std::move(members)) {}
+    , MemberDefs(std::move(members))
+    , IsPrimitive(isPrimitive) {}
 
   llvm::Value* codegen() override { return nullptr; }
   std::string getTypeName() const { return TyName; }
@@ -134,6 +136,7 @@ public:
 private:
   std::string TyName;
   MemberDefs_t MemberDefs;
+  bool IsPrimitive;
 
   static const PrimitiveTypeLookup primitiveTypesLlvm;
 };
