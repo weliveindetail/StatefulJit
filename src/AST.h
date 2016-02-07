@@ -95,12 +95,14 @@ private:
 
 // ----------------------------------------------------------------------------
 
+class TypeMemberDefinitionExprAST;
+
 // Expression class for defining a type
 class TypeDefinitionExprAST : public ExprAST
 {
 public:
   TypeDefinitionExprAST(
-    std::string name, std::vector<std::unique_ptr<ExprAST>> members)
+    std::string name, std::vector<std::unique_ptr<TypeMemberDefinitionExprAST>> members)
     : TyName(std::move(name)), MemberDefs(std::move(members)) {}
 
   llvm::Value* codegen() override { return nullptr; }
@@ -128,7 +130,7 @@ public:
 
 private:
   std::string TyName;
-  std::vector<std::unique_ptr<ExprAST>> MemberDefs;
+  std::vector<std::unique_ptr<TypeMemberDefinitionExprAST>> MemberDefs;
 
   static const PrimitiveTypeLookup primitiveTypesLlvm;
 };

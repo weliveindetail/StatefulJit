@@ -154,11 +154,18 @@ static std::unique_ptr<ExprAST> ParseCompoundTypeDefinitionExpr()
     return Error("expected opening '{' for compound type definition");
 
   getNextToken(); // eat the brace
-  std::vector<std::unique_ptr<ExprAST>> memberDefs;
+
+  using MemberDef_t = TypeMemberDefinitionExprAST;
+  std::vector<std::unique_ptr<MemberDef_t>> memberDefs;
 
   while (1)
   {
-    memberDefs.push_back(ParseCompoundMemberDefinitionExpr());
+    auto memberDef = ParseCompoundMemberDefinitionExpr();
+
+    // note that this hack ignores the unique_ptr's deleter, 
+    // which is fine as it is defined virtual in the base class
+    auto* memberDef_rawptr = static_cast<MemberDef_t*>(memberDef.release());
+    memberDefs.push_back(std::unique_ptr<MemberDef_t>(memberDef_rawptr));
 
     // End of member list, exit loop
     if (CurTok != ',')
