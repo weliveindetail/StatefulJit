@@ -171,12 +171,14 @@ public:
 private:
   std::string VarName;
   TypeDefinitionExprAST* VarTyDef;
-  std::unique_ptr<ExprAST> VarInit = nullptr;
+  std::unique_ptr<ExprAST> VarInit;
 
-  llvm::Value* codegenStatefulVarExpr(llvm::Value* InitValue);
-  llvm::Value* codegenAlloc();
+  std::pair<llvm::Value*, bool> codegenDefinition(llvm::Type* ty);
 
-  void codegenRegisterStatefulVarExpr(int VarId, llvm::Value* VoidPtr);
+  llvm::Value* codegenReuseMemory(int varId);
+  llvm::Value* codegenAllocMemory(int varId);
+  void codegenSubmitMemoryLocation(int varId, llvm::Value* voidPtr);
+  void codegenInit(llvm::Value* valPtr, llvm::Type* valTy, llvm::Value* init);
 };
 
 // ----------------------------------------------------------------------------

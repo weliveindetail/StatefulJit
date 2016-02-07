@@ -155,78 +155,100 @@ Value *VarDefinitionExprAST::codegen()
       return nullptr;
   }
 
-  Value* double_ptr = codegenStatefulVarExpr(initVal);
-  NamedValues[VarName] = double_ptr;
+  // compile new variable allocation
+  Value* valPtr;
+  bool requiresInit;
+  Type* ty = VarTyDef->getTy();
+
+  std::tie(valPtr, requiresInit) = codegenDefinition(ty);
+
+  if (requiresInit && !initVal)
+    initVal = VarTyDef->getDefaultInitVal();
+
+  if (initVal)
+    codegenInit(valPtr, ty, initVal);
+
+  NamedValues[VarName] = valPtr;
 }
 
 // ----------------------------------------------------------------------------
 
-Value* VarDefinitionExprAST::codegenStatefulVarExpr(Value* InitValue)
+void VarDefinitionExprAST::codegenInit(Value* valPtr, Type* valTy, Value* init)
 {
-  auto& C = getGlobalContext();
+  Value* typedInitValue;
 
-  Type* varTy = VarTyDef->getTy();
-
-  // this is minimalistic! still only global primitive variables
-  int varId = JitCompiler->getOrCreateStatefulVariable(VarName, varTy);
-
-  if (JitCompiler->hasMemLocation(varId))
+  if (valTy->isStructTy())
   {
-    // variable already existed in previous revision
-    void* existingVoidPtr = JitCompiler->getMemLocation(varId);
+    // do explicit initialization for compound types
 
-    // compile address from immediate value
-    int ptrBits = sizeof(void*) * 8;
-    Type* ptrAsIntTy = Type::getIntNTy(C, ptrBits);
-    Constant* addrAsInt = ConstantInt::get(ptrAsIntTy, (int64_t)existingVoidPtr);
-    Value* voidPtr = ConstantExpr::getIntToPtr(addrAsInt, Type::getInt8PtrTy(C));
-
-    // cast pointer to type
-    Type* ptrTy = PointerType::getUnqual(varTy);
-    Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
-
-    // overwrite previous value only if init is specified explicitly
-    if (InitValue)
-    {
-      Value* typedInitValue = codegenCastPrimitive(InitValue, varTy);
-      Builder.CreateStore(typedInitValue, typedPtr);
-    }
-
-    return typedPtr;
+    // implicit initialization has correct type
+    assert(valTy == init->getType());
+    typedInitValue = init;
   }
   else
   {
-    // compile new variable allocation
-    Value* voidPtr = codegenAlloc();
-
-    // submit address to Jit
-    codegenRegisterStatefulVarExpr(varId, voidPtr);
-
-    // cast pointer to type
-    Type* ptrTy = PointerType::getUnqual(varTy);
-    Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
-
-    // initialize implicitly if no explicit value provided
-    if (!InitValue)
-      InitValue = VarTyDef->getDefaultInitVal();
-
-    Value* typedInitValue = codegenCastPrimitive(InitValue, varTy);
-    Builder.CreateStore(typedInitValue, typedPtr);
-
-    return typedPtr;
+    typedInitValue = codegenCastPrimitive(init, valTy);
   }
+
+  Builder.CreateStore(typedInitValue, valPtr);
 }
 
 // ----------------------------------------------------------------------------
 
-Value* VarDefinitionExprAST::codegenAlloc()
+std::pair<Value*, bool> VarDefinitionExprAST::codegenDefinition(Type* ty)
 {
-  auto& C = getGlobalContext();
+  Value* voidPtr;
+  bool requiresInit;
+
+  // this is minimalistic! still only global primitive variables
+  int varId = JitCompiler->getOrCreateStatefulVariable(VarName, ty);
+
+  if (JitCompiler->hasMemLocation(varId))
+  {
+    requiresInit = false;
+    voidPtr = codegenReuseMemory(varId);
+  }
+  else
+  {
+    requiresInit = true;
+    voidPtr = codegenAllocMemory(varId);
+    codegenSubmitMemoryLocation(varId, voidPtr);
+  }
+
+  // cast pointer to type
+  Type* ptrTy = PointerType::getUnqual(ty);
+  Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
+
+  return std::make_pair(typedPtr, requiresInit);
+}
+
+// ----------------------------------------------------------------------------
+
+Value* VarDefinitionExprAST::codegenReuseMemory(int varId)
+{
+  auto& Ctx = getGlobalContext();
+
+  // variable already existed in previous revision
+  void* existingVoidPtr = JitCompiler->getMemLocation(varId);
+
+  // compile address from immediate value
+  int ptrBits = sizeof(void*) * 8;
+  Type* ptrAsIntTy = Type::getIntNTy(Ctx, ptrBits);
+  Constant* addrAsInt = ConstantInt::get(ptrAsIntTy, (int64_t)existingVoidPtr);
+
+  return ConstantExpr::getIntToPtr(addrAsInt, Type::getInt8PtrTy(Ctx));
+}
+
+// ----------------------------------------------------------------------------
+
+Value* VarDefinitionExprAST::codegenAllocMemory(int varId)
+{
+  auto& Ctx = getGlobalContext();
   Module* M = Builder.GetInsertBlock()->getParent()->getParent();
 
   // declare function
-  Type* retTy = Type::getInt8PtrTy(C);
-  ArrayRef<Type*> argTys = { Type::getInt64Ty(C) };
+  Type* retTy = Type::getInt8PtrTy(Ctx);
+  ArrayRef<Type*> argTys = { Type::getInt64Ty(Ctx) };
   FunctionType* mallocSig = FunctionType::get(retTy, argTys, false);
 
   Value* mallocFn = M->getOrInsertFunction("malloc", mallocSig);
@@ -237,6 +259,34 @@ Value* VarDefinitionExprAST::codegenAlloc()
   Builder.GetInsertBlock()->getInstList().push_back(mallocCall);
 
   return mallocCall; // the symbol the return value of malloc gets stored to
+}
+
+// ----------------------------------------------------------------------------
+
+void VarDefinitionExprAST::codegenSubmitMemoryLocation(int VarId, Value* VoidPtr)
+{
+  auto& C = getGlobalContext();
+  Module* M = Builder.GetInsertBlock()->getParent()->getParent();
+
+  // declare function
+  Type* retTy = Type::getVoidTy(C);
+  int intBits = sizeof(int) * 8;
+  Type* argVarIdTy = Type::getIntNTy(C, intBits);
+  Type* argAddrPtrTy = Type::getInt8PtrTy(C);
+
+  FunctionType* signature =
+    FunctionType::get(retTy, { argVarIdTy, argAddrPtrTy }, false);
+
+  Value* submitMemLocFn = M->getOrInsertFunction(
+    "SubmitMemoryLocation", signature);
+
+  // compile call
+  Constant* varIdConst =
+    ConstantInt::get(argVarIdTy, APInt(intBits, VarId, true));
+
+  ArrayRef<Value*> params({ varIdConst, VoidPtr });
+  CallInst* setMemLocationCall = CallInst::Create(submitMemLocFn, params);
+  Builder.GetInsertBlock()->getInstList().push_back(setMemLocationCall);
 }
 
 // ----------------------------------------------------------------------------
@@ -266,34 +316,6 @@ Instruction::CastOps ExprAST::getOperationCastPrimitve(Type* srcTy, Type* dstTy)
 
   assert(false && "Unknown type conversion");
   return Instruction::BitCast;
-}
-
-// ----------------------------------------------------------------------------
-
-void VarDefinitionExprAST::codegenRegisterStatefulVarExpr(int VarId, Value* VoidPtr)
-{
-  auto& C = getGlobalContext();
-  Module* M = Builder.GetInsertBlock()->getParent()->getParent();
-
-  // declare function
-  Type* retTy = Type::getVoidTy(C);
-  int intBits = sizeof(int) * 8;
-  Type* argVarIdTy = Type::getIntNTy(C, intBits);
-  Type* argAddrPtrTy = Type::getInt8PtrTy(C);
-
-  FunctionType* signature = 
-    FunctionType::get(retTy, { argVarIdTy, argAddrPtrTy }, false);
-
-  Value* submitMemLocFn = M->getOrInsertFunction(
-    "SubmitMemoryLocation", signature);
-
-  // compile call
-  Constant* varIdConst =
-    ConstantInt::get(argVarIdTy, APInt(intBits, VarId, true));
-
-  ArrayRef<Value*> params({ varIdConst, VoidPtr });
-  CallInst* setMemLocationCall = CallInst::Create(submitMemLocFn, params);
-  Builder.GetInsertBlock()->getInstList().push_back(setMemLocationCall);
 }
 
 // ----------------------------------------------------------------------------
