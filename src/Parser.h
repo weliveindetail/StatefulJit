@@ -2,6 +2,7 @@
 
 #include <map>
 #include <memory>
+#include <functional>
 
 #include "Globals.h"
 #include "Lexer.h"
@@ -14,6 +15,11 @@
 /// lexer and updates CurTok with its results.
 static int CurTok;
 static int getNextToken() { return CurTok = gettok(); }
+
+// Workaround yet another MSVC bug:
+// https://connect.microsoft.com/VisualStudio/feedback/details/1298009
+using ResolveType_f = std::function<TypeDefinitionExprAST*(std::string)>;
+static ResolveType_f resolveTypeHack;
 
 /// BinopPrecedence - This holds the precedence for each binary operator that is
 /// defined.
@@ -71,7 +77,14 @@ static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
   if (CurTok != tok_identifier)
     return Error("expected identifier for variable type");
 
-  std::string type = IdentifierStr;
+  TypeDefinitionExprAST* type_rawptr = resolveTypeHack(IdentifierStr);
+
+  if (!type_rawptr)
+  {
+    std::string msg = "unknown type '" + IdentifierStr + "'";
+    return Error(msg.c_str());
+  }
+
   getNextToken(); // eat the type name
 
   if (CurTok != tok_identifier)
@@ -90,7 +103,87 @@ static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
       return nullptr;
   }
 
-  return std::make_unique<VarDefinitionExprAST>(type, std::move(name), std::move(init));
+  return std::make_unique<VarDefinitionExprAST>(
+    std::move(name), type_rawptr, std::move(init));
+}
+
+// ----------------------------------------------------------------------------
+
+/// memdef ::= ('double'|'int') identifier
+static std::unique_ptr<ExprAST> ParseCompoundMemberDefinitionExpr()
+{
+  if (CurTok != tok_identifier)
+    return Error("expected identifier for member type");
+
+  TypeDefinitionExprAST* type_rawptr = resolveTypeHack(IdentifierStr);
+
+  if (!type_rawptr)
+  {
+    std::string msg = "unknown type '" + IdentifierStr + "'";
+    return Error(msg.c_str());
+  }
+
+  getNextToken(); // eat identifier
+  if (CurTok != tok_identifier)
+    return Error("expected identifier for member name");
+
+  std::string name = IdentifierStr;
+  getNextToken(); // eat identifier
+
+  return std::make_unique<TypeMemberDefinitionExprAST>(
+    std::move(name), type_rawptr);
+}
+
+// ----------------------------------------------------------------------------
+
+/// tydef ::= tyname ':' 'struct' '{' memdef (',' memdef)* '}'
+static std::unique_ptr<ExprAST> ParseCompoundTypeDefinitionExpr()
+{
+  std::string name = IdentifierStr;
+
+  getNextToken(); // eat the identifier
+  if (CurTok != tok_colon)
+    return Error("expected ':' after type identifier");
+
+  getNextToken(); // eat the colon
+  if (CurTok != tok_struct)
+    return Error("expected 'struct' for compound type definition");
+
+  getNextToken(); // eat the 'struct'
+  if (CurTok != tok_brace_open)
+    return Error("expected opening '{' for compound type definition");
+
+  getNextToken(); // eat the brace
+
+  using MemberDef_t = TypeMemberDefinitionExprAST;
+  std::vector<std::unique_ptr<MemberDef_t>> memberDefs;
+
+  while (1)
+  {
+    auto memberDef = ParseCompoundMemberDefinitionExpr();
+
+    // note that this hack ignores the unique_ptr's deleter, 
+    // which is fine as it is defined virtual in the base class
+    auto* memberDef_rawptr = static_cast<MemberDef_t*>(memberDef.release());
+    memberDefs.push_back(std::unique_ptr<MemberDef_t>(memberDef_rawptr));
+
+    // End of member list, exit loop
+    if (CurTok != ',')
+      break;
+
+    getNextToken(); // eat the ','
+
+    if (CurTok != tok_identifier)
+      return Error("expected identifier for variable type after ','");
+  }
+
+  // At this point, we have to have '}'
+  if (CurTok != tok_brace_close)
+    return Error("expected closing '}' after compound type definition");
+
+  getNextToken(); // eat the brace
+  return std::make_unique<TypeDefinitionExprAST>(
+    std::move(name), std::move(memberDefs));
 }
 
 // ----------------------------------------------------------------------------
@@ -165,6 +258,33 @@ static std::unique_ptr<ExprAST> ParseExpression()
 
 // ----------------------------------------------------------------------------
 
+void TopLevelExprAST::ParseTypeSection()
+{
+  getNextToken(); // eat the 'types'
+
+  while (1)
+  {
+    auto typeDef = ParseCompoundTypeDefinitionExpr();
+
+    // note that this hack ignores the unique_ptr's deleter, 
+    // which is fine as it is defined virtual in the base class
+    auto* typeDef_rawptr = static_cast<TypeDefinitionExprAST*>(typeDef.release());
+    TypeDefinitions.push_back(std::unique_ptr<TypeDefinitionExprAST>(typeDef_rawptr));
+
+    if (CurTok != ',')
+      break;
+
+    getNextToken(); // eat the ','
+    assert(CurTok == tok_identifier && 
+          "expected next type identifier after ','");
+  }
+
+  assert((CurTok == tok_variables || CurTok == tok_execute) &&
+         "expected keywords 'def' or 'run' after 'types'");
+}
+
+// ----------------------------------------------------------------------------
+
 void TopLevelExprAST::ParseVarSection()
 {
   getNextToken(); // eat the 'def'
@@ -194,10 +314,52 @@ void TopLevelExprAST::ParseBody()
 
 // ----------------------------------------------------------------------------
 
+void TopLevelExprAST::InitPrimitiveTypes()
+{
+  assert(TypeDefinitions.empty());
+
+  auto* tyDouble = new TypeDefinitionExprAST("double", {});
+  TypeDefinitions.push_back(std::unique_ptr<TypeDefinitionExprAST>(tyDouble));
+
+  auto* tyInt = new TypeDefinitionExprAST("int", {});
+  TypeDefinitions.push_back(std::unique_ptr<TypeDefinitionExprAST>(tyInt));
+}
+
+// ----------------------------------------------------------------------------
+
+TypeDefinitionExprAST* TopLevelExprAST::ResolveTypeDefinition(std::string name)
+{
+  auto matchName = [name](std::unique_ptr<TypeDefinitionExprAST>& ty) {
+    return name == ty->getTypeName();
+  };
+
+  auto it = std::find_if(TypeDefinitions.begin(), 
+                         TypeDefinitions.end(), 
+                         matchName);
+
+  return (it == TypeDefinitions.end()) ? nullptr : it->get();
+}
+
+// ----------------------------------------------------------------------------
+
 /// toplevelexpr ::= expression
 static std::unique_ptr<TopLevelExprAST> ParseTopLevelExpr() 
 {
   auto tlExpr = std::make_unique<TopLevelExprAST>();
+
+  // auto resolveTypeFn = std::mem_fn(&TopLevelExprAST::ResolveTypeDefinition);
+  // std::bind(resolveTypeFn, tlExpr.get()); // doesn't work with msvc
+
+  resolveTypeHack = [&tlExpr](std::string name) {
+    return tlExpr->ResolveTypeDefinition(name);
+  };
+
+  tlExpr->InitPrimitiveTypes();
+
+  if (CurTok == tok_types)
+  {
+    tlExpr->ParseTypeSection();
+  }
 
   if (CurTok == tok_variables)
   {

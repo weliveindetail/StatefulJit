@@ -97,6 +97,20 @@ TEST(LanguageFeatures, ImplicitCasts)
 
 // ----------------------------------------------------------------------------
 
+TEST(LanguageFeatures, FlatCompoundTypeDefinitions)
+{
+  StaticInit();
+  auto jit = SetupStatefulJit();
+
+  EXPECT_EQ(0.0, Eval(*jit, "types t1: struct { int a } run 0;"));
+  EXPECT_EQ(1.0, Eval(*jit, "types t1: struct { int a, double b } run 1;"));
+  EXPECT_EQ(2.0, Eval(*jit, "types t1: struct { int a }, "
+                                  "t2: struct { int a, double b }, "
+                                  "t3: struct { double a } run 2;"));
+}
+
+// ----------------------------------------------------------------------------
+
 TEST(StatefulEvaluation, SingleVariable)
 {
   StaticInit();

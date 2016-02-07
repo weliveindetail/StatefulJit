@@ -24,10 +24,6 @@ public:
   virtual ~ExprAST() {}
   virtual llvm::Value *codegen() = 0;
 
-  static bool isPrimitiveTypeName(std::string name);
-  static llvm::Type* getPrimitiveTypeLlvm(std::string name);
-  static llvm::Value* getPrimitiveDefaultInitValue(std::string name);
-
   static llvm::Value* codegenCastPrimitive(
     llvm::Value* val,
     llvm::Type* dstTy);
@@ -36,14 +32,6 @@ private:
   static llvm::Instruction::CastOps getOperationCastPrimitve(
     llvm::Type* srcTy, 
     llvm::Type* dstTy);
-
-  using TypeInfoMap_t = std::map<
-    std::string, 
-    std::pair<llvm::Type*, llvm::Value*>
-  >;
-
-  static TypeInfoMap_t makePrimitiveTypesLlvm();
-  static TypeInfoMap_t primitiveTypesLlvm;
 };
 
 // ----------------------------------------------------------------------------
@@ -89,19 +77,53 @@ public:
 
 // ----------------------------------------------------------------------------
 
-// Expression class for defining a variable
-class VarDefinitionExprAST : public ExprAST
+class PrimitiveTypeLookup
 {
+  using TypeInfo_t = std::pair<llvm::Type*, llvm::Value*>;
+
 public:
-  VarDefinitionExprAST(
-    std::string type, std::string name, std::unique_ptr<ExprAST> init)
-    : VarTyName(type), VarName(std::move(name)), VarInit(std::move(init)) {}
+  PrimitiveTypeLookup();
 
-  llvm::Value* codegen() override;
+  bool hasName(std::string name) const;
+  llvm::Type* getTypeLlvm(std::string name) const;
+  llvm::Value* getDefaultInitValue(std::string name) const;
 
-  llvm::Type* getTy() {
-    if (isPrimitiveTypeName(VarTyName)) {
-      return getPrimitiveTypeLlvm(VarTyName);
+private:
+  std::map<std::string, TypeInfo_t> Map;
+
+};
+
+// ----------------------------------------------------------------------------
+
+class TypeMemberDefinitionExprAST;
+
+// Expression class for defining a type
+class TypeDefinitionExprAST : public ExprAST
+{
+  using MemberDefs_t = std::vector<std::unique_ptr<TypeMemberDefinitionExprAST>>;
+
+public:
+  TypeDefinitionExprAST(std::string name, 
+                        MemberDefs_t members)
+    : TyName(std::move(name))
+    , MemberDefs(std::move(members)) {}
+
+  llvm::Value* codegen() override { return nullptr; }
+  std::string getTypeName() const { return TyName; }
+
+  llvm::Type* getTy() const {
+    if (primitiveTypesLlvm.hasName(TyName)) {
+      return primitiveTypesLlvm.getTypeLlvm(TyName);
+    }
+    else {
+      assert(false && "Compound types not yet implemented");
+      return nullptr;
+    }
+  }
+
+  llvm::Value* getDefaultInitVal() const {
+    if (primitiveTypesLlvm.hasName(TyName)) {
+      return primitiveTypesLlvm.getDefaultInitValue(TyName);
     }
     else {
       assert(false && "Compound types not yet implemented");
@@ -110,8 +132,45 @@ public:
   }
 
 private:
+  std::string TyName;
+  MemberDefs_t MemberDefs;
+
+  static const PrimitiveTypeLookup primitiveTypesLlvm;
+};
+
+// ----------------------------------------------------------------------------
+
+// Expression class for defining a sub-type
+class TypeMemberDefinitionExprAST : public ExprAST
+{
+public:
+  TypeMemberDefinitionExprAST(std::string name, TypeDefinitionExprAST* type)
+    : MemberName(std::move(name)), MemberTyDef(type) {}
+
+  llvm::Value* codegen() override { return nullptr; }
+  std::string getTypeName() const { return MemberTyDef->getTypeName(); }
+
+private:
+  std::string MemberName;
+  TypeDefinitionExprAST* MemberTyDef;
+
+};
+
+// ----------------------------------------------------------------------------
+
+// Expression class for defining a variable
+class VarDefinitionExprAST : public ExprAST
+{
+public:
+  VarDefinitionExprAST(
+    std::string name, TypeDefinitionExprAST* type, std::unique_ptr<ExprAST> init)
+    : VarName(std::move(name)), VarTyDef(type), VarInit(std::move(init)) {}
+
+  llvm::Value* codegen() override;
+
+private:
   std::string VarName;
-  std::string VarTyName;
+  TypeDefinitionExprAST* VarTyDef;
   std::unique_ptr<ExprAST> VarInit = nullptr;
 
   llvm::Value* codegenStatefulVarExpr(llvm::Value* InitValue);
@@ -126,6 +185,13 @@ private:
 class TopLevelExprAST
 {
 public:
+  using TypeDefs_t = std::vector<std::unique_ptr<TypeDefinitionExprAST>>;
+  using VarDefs_t = std::vector<std::unique_ptr<ExprAST>>;
+
+  void InitPrimitiveTypes();
+  TypeDefinitionExprAST* ResolveTypeDefinition(std::string name);
+
+  void ParseTypeSection();
   void ParseVarSection();
   void ParseBody();
 
@@ -135,7 +201,8 @@ public:
     std::string nameId);
 
 private:
-  std::vector<std::unique_ptr<ExprAST>> VarDefinitions;
   std::unique_ptr<ExprAST> Body = nullptr;
+  TypeDefs_t TypeDefinitions;
+  VarDefs_t VarDefinitions;
 
 };
