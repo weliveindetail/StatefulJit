@@ -28,6 +28,7 @@ class TypeLookup
 {
 public:
   void init(const llvm::DataLayout& dataLayout);
+  void populate(const TopLevelExprAST::TypeDefs_t& types);
 
   bool hasName(std::string name) const;
   llvm::Type* getTypeLlvm(std::string name) const;
@@ -37,6 +38,8 @@ public:
 
 private:
   llvm::DataLayout* DataLayout_rawptr;
+  std::map<std::string, llvm::StructType*> CompoundTypesLlvm;
   std::map<std::string, std::pair<llvm::Type*, llvm::Value*>> PrimitiveTypesLlvm;
 
+  llvm::StructType* makeCompound(TopLevelExprAST::TypeDefs_t::const_reference type);
 };

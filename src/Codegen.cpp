@@ -22,6 +22,7 @@ void TypeLookup::clear()
 {
   DataLayout_rawptr = nullptr;
   PrimitiveTypesLlvm.clear();
+  CompoundTypesLlvm.clear();
 }
 
 // ----------------------------------------------------------------------------
@@ -46,9 +47,54 @@ void TypeLookup::init(const llvm::DataLayout& dataLayout)
 
 // ----------------------------------------------------------------------------
 
+void TypeLookup::populate(const TopLevelExprAST::TypeDefs_t& types)
+{
+  for (TopLevelExprAST::TypeDefs_t::const_reference type : types)
+  {
+    if (type->IsPrimitive)
+    {
+      auto it = PrimitiveTypesLlvm.find(type->getTypeName());
+      assert(it != PrimitiveTypesLlvm.end() && "Unknwon primitive type");
+    }
+    else
+    {
+      bool isNew = !hasName(type->getTypeName());
+      assert(isNew && "Ambiguous type name during codegen -- check parser");
+
+      CompoundTypesLlvm[type->getTypeName()] = makeCompound(type);
+    }
+  }
+}
+
+// ----------------------------------------------------------------------------
+
+llvm::StructType* TypeLookup::makeCompound(TopLevelExprAST::TypeDefs_t::const_reference type)
+{
+  using SubtypeMembers_t = TypeDefinitionExprAST::MemberDefs_t;
+  auto inferTypeForDef = [this](SubtypeMembers_t::reference member) {
+    return getTypeLlvm(member->getTypeName());
+  };
+
+  std::vector<llvm::Type*> memberTypes(type->MemberDefs.size());
+
+  auto endIt = std::transform(
+    type->MemberDefs.begin(),
+    type->MemberDefs.end(),
+    memberTypes.begin(),
+    inferTypeForDef);
+
+  assert(endIt == memberTypes.end());
+
+  auto& Ctx = llvm::getGlobalContext();
+  return llvm::StructType::create(Ctx, memberTypes);
+}
+
+// ----------------------------------------------------------------------------
+
 bool TypeLookup::hasName(std::string name) const
 {
-  return PrimitiveTypesLlvm.find(name) != PrimitiveTypesLlvm.end();
+  return PrimitiveTypesLlvm.find(name) != PrimitiveTypesLlvm.end() ||
+         CompoundTypesLlvm.find(name) != CompoundTypesLlvm.end();
 }
 
 // ----------------------------------------------------------------------------
@@ -59,6 +105,12 @@ llvm::Type* TypeLookup::getTypeLlvm(std::string name) const
   if (itPrim != PrimitiveTypesLlvm.end())
   {
     return itPrim->second.first;
+  }
+
+  auto itComp = CompoundTypesLlvm.find(name);
+  if (itComp != CompoundTypesLlvm.end())
+  {
+    return itComp->second;
   }
 
   assert("Unknown type during codegen -- check parser");
@@ -73,6 +125,13 @@ Value* TypeLookup::getDefaultInitValue(std::string name) const
   if (itPrim != PrimitiveTypesLlvm.end())
   {
     return itPrim->second.second;
+  }
+
+  auto itComp = CompoundTypesLlvm.find(name);
+  if (itComp != CompoundTypesLlvm.end())
+  {
+    // make value from StructLayout
+    return nullptr;
   }
 
   assert("Unknown type during codegen -- check parser");
@@ -366,6 +425,7 @@ Function *TopLevelExprAST::codegen(StatefulJit& jit,
 
   // setup type lookup
   NamedTypes.init(module_rawptr->getDataLayout());
+  NamedTypes.populate(TypeDefinitions);
 
   // prepare codegen
   BasicBlock *BB = BasicBlock::Create(C, "entry", topLevelFn);
