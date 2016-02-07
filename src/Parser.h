@@ -264,10 +264,6 @@ void TopLevelExprAST::ParseTypeSection()
 
   while (1)
   {
-    auto resolveType = [](std::string name) -> TypeDefinitionExprAST* {
-      return nullptr; // ResolveTypeDefinition(name);
-    };
-
     auto typeDef = ParseCompoundTypeDefinitionExpr();
 
     // note that this hack ignores the unique_ptr's deleter, 
@@ -329,13 +325,12 @@ void TopLevelExprAST::InitPrimitiveTypes()
   TypeDefinitions.push_back(std::unique_ptr<TypeDefinitionExprAST>(tyInt));
 }
 
-
 // ----------------------------------------------------------------------------
 
 TypeDefinitionExprAST* TopLevelExprAST::ResolveTypeDefinition(std::string name)
 {
   auto matchName = [name](std::unique_ptr<TypeDefinitionExprAST>& ty) {
-    return name == ty->getName();
+    return name == ty->getTypeName();
   };
 
   auto it = std::find_if(TypeDefinitions.begin(), 
