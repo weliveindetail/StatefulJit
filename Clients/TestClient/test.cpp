@@ -153,6 +153,8 @@ TEST(StatefulEvaluation, RespectPrimitiveTypes)
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
+  ::testing::GTEST_FLAG(catch_exceptions) = false;
+
   int exitCode = RUN_ALL_TESTS();
 
   // on windows don't close the console window immediately
