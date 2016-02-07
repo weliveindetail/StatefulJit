@@ -77,24 +77,8 @@ public:
 
 // ----------------------------------------------------------------------------
 
-class PrimitiveTypeLookup
-{
-  using TypeInfo_t = std::pair<llvm::Type*, llvm::Value*>;
-
-public:
-  PrimitiveTypeLookup();
-
-  bool hasName(std::string name) const;
-  llvm::Type* getTypeLlvm(std::string name) const;
-  llvm::Value* getDefaultInitValue(std::string name) const;
-
-private:
-  std::map<std::string, TypeInfo_t> Map;
-
-};
-
-// ----------------------------------------------------------------------------
-
+// Codegen class for managing types
+class TypeLookup;
 class TypeMemberDefinitionExprAST;
 
 // Expression class for defining a type
@@ -113,32 +97,12 @@ public:
   llvm::Value* codegen() override { return nullptr; }
   std::string getTypeName() const { return TyName; }
 
-  llvm::Type* getTy() const {
-    if (primitiveTypesLlvm.hasName(TyName)) {
-      return primitiveTypesLlvm.getTypeLlvm(TyName);
-    }
-    else {
-      assert(false && "Compound types not yet implemented");
-      return nullptr;
-    }
-  }
-
-  llvm::Value* getDefaultInitVal() const {
-    if (primitiveTypesLlvm.hasName(TyName)) {
-      return primitiveTypesLlvm.getDefaultInitValue(TyName);
-    }
-    else {
-      assert(false && "Compound types not yet implemented");
-      return nullptr;
-    }
-  }
-
 private:
   std::string TyName;
   MemberDefs_t MemberDefs;
   bool IsPrimitive;
 
-  static const PrimitiveTypeLookup primitiveTypesLlvm;
+  friend class TypeLookup;
 };
 
 // ----------------------------------------------------------------------------

@@ -14,45 +14,69 @@ using llvm::orc::StatefulJit;
 static StatefulJit* JitCompiler;
 static IRBuilder<> Builder(getGlobalContext());
 static std::map<std::string, Value *> NamedValues;
-const PrimitiveTypeLookup TypeDefinitionExprAST::primitiveTypesLlvm;
+static TypeLookup NamedTypes;
 
 // ----------------------------------------------------------------------------
 
-PrimitiveTypeLookup::PrimitiveTypeLookup()
+void TypeLookup::clear()
 {
+  DataLayout_rawptr = nullptr;
+  PrimitiveTypesLlvm.clear();
+}
+
+// ----------------------------------------------------------------------------
+
+void TypeLookup::init(const llvm::DataLayout& dataLayout)
+{
+  DataLayout_rawptr = const_cast<llvm::DataLayout*>(&dataLayout);
+
   auto& Ctx = getGlobalContext();
   constexpr int intBits = sizeof(int) * 8;
 
-  // LLVM types
-  Map["double"].first = llvm::Type::getDoubleTy(Ctx);
-  Map["int"].first = llvm::Type::getIntNTy(Ctx, intBits);
+  PrimitiveTypesLlvm["double"] = std::make_pair(
+    llvm::Type::getDoubleTy(Ctx),
+    ConstantFP::get(Ctx, APFloat(0.0))
+  );
 
-  // default init values
-  Map["double"].second = ConstantFP::get(Ctx, APFloat(0.0));
-  Map["int"].second = ConstantInt::get(Ctx, APInt(intBits, 0, true));
+  PrimitiveTypesLlvm["int"] = std::make_pair(
+    llvm::Type::getIntNTy(Ctx, intBits),
+    ConstantInt::get(Ctx, APInt(intBits, 0, true))
+  );
 }
 
 // ----------------------------------------------------------------------------
 
-bool PrimitiveTypeLookup::hasName(std::string name) const
+bool TypeLookup::hasName(std::string name) const
 {
-  return (Map.find(name) != Map.end());
+  return PrimitiveTypesLlvm.find(name) != PrimitiveTypesLlvm.end();
 }
 
 // ----------------------------------------------------------------------------
 
-llvm::Type* PrimitiveTypeLookup::getTypeLlvm(std::string name) const
+llvm::Type* TypeLookup::getTypeLlvm(std::string name) const
 {
-  assert(hasName(name) && "Unknown primitve type name");
-  return Map.at(name).first;
+  auto itPrim = PrimitiveTypesLlvm.find(name);
+  if (itPrim != PrimitiveTypesLlvm.end())
+  {
+    return itPrim->second.first;
+  }
+
+  assert("Unknown type during codegen -- check parser");
+  return nullptr;
 }
 
 // ----------------------------------------------------------------------------
 
-Value* PrimitiveTypeLookup::getDefaultInitValue(std::string name) const
+Value* TypeLookup::getDefaultInitValue(std::string name) const
 {
-  assert(hasName(name) && "Unknown primitve type name");
-  return Map.at(name).second;
+  auto itPrim = PrimitiveTypesLlvm.find(name);
+  if (itPrim != PrimitiveTypesLlvm.end())
+  {
+    return itPrim->second.second;
+  }
+
+  assert("Unknown type during codegen -- check parser");
+  return nullptr;
 }
 
 // ----------------------------------------------------------------------------
@@ -158,12 +182,12 @@ Value *VarDefinitionExprAST::codegen()
   // compile new variable allocation
   Value* valPtr;
   bool requiresInit;
-  Type* ty = VarTyDef->getTy();
+  Type* ty = NamedTypes.getTypeLlvm(VarTyDef->getTypeName());
 
   std::tie(valPtr, requiresInit) = codegenDefinition(ty);
 
   if (requiresInit && !initVal)
-    initVal = VarTyDef->getDefaultInitVal();
+    initVal = NamedTypes.getDefaultInitValue(VarTyDef->getTypeName());
 
   if (initVal)
     codegenInit(valPtr, ty, initVal);
@@ -254,7 +278,8 @@ Value* VarDefinitionExprAST::codegenAllocMemory(int varId)
   Value* mallocFn = M->getOrInsertFunction("malloc", mallocSig);
 
   // compile call
-  Constant* dataSize = ConstantExpr::getSizeOf(VarTyDef->getTy());
+  Type* varTy = NamedTypes.getTypeLlvm(VarTyDef->getTypeName());
+  Constant* dataSize = ConstantExpr::getSizeOf(varTy);
   CallInst* mallocCall = CallInst::Create(mallocFn, dataSize, VarName + "_void_ptr");
   Builder.GetInsertBlock()->getInstList().push_back(mallocCall);
 
@@ -339,6 +364,9 @@ Function *TopLevelExprAST::codegen(StatefulJit& jit,
   Function *topLevelFn = Function::Create(signature,
     Function::ExternalLinkage, nameId, module_rawptr);
 
+  // setup type lookup
+  NamedTypes.init(module_rawptr->getDataLayout());
+
   // prepare codegen
   BasicBlock *BB = BasicBlock::Create(C, "entry", topLevelFn);
   Builder.SetInsertPoint(BB);
@@ -359,12 +387,16 @@ Function *TopLevelExprAST::codegen(StatefulJit& jit,
     verifyFunction(*topLevelFn);
 
     topLevelFn->setName(nameId);
-    return topLevelFn;
   }
   else
   {
     // error reading body
     topLevelFn->eraseFromParent();
-    return nullptr;
+    topLevelFn = nullptr;
   }
+
+  NamedValues.clear();
+  NamedTypes.clear();
+
+  return topLevelFn;
 }
