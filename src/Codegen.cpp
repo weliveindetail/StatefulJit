@@ -49,7 +49,7 @@ void TypeLookup::init(const llvm::DataLayout& dataLayout)
 
 void TypeLookup::populate(const TopLevelExprAST::TypeDefs_t& types)
 {
-  for (TopLevelExprAST::TypeDefs_t::const_reference type : types)
+  for (const auto& type : types)
   {
     if (type->IsPrimitive)
     {
@@ -68,25 +68,18 @@ void TypeLookup::populate(const TopLevelExprAST::TypeDefs_t& types)
 
 // ----------------------------------------------------------------------------
 
-llvm::StructType* TypeLookup::makeCompound(TopLevelExprAST::TypeDefs_t::const_reference type)
+llvm::StructType* TypeLookup::makeCompound(const TypeDef_t& typeDef)
 {
-  using SubtypeMembers_t = TypeDefinitionExprAST::MemberDefs_t;
-  auto inferTypeForDef = [this](SubtypeMembers_t::reference member) {
-    return getTypeLlvm(member->getTypeName());
-  };
-
-  std::vector<llvm::Type*> memberTypes(type->MemberDefs.size());
-
-  auto endIt = std::transform(
-    type->MemberDefs.begin(),
-    type->MemberDefs.end(),
-    memberTypes.begin(),
-    inferTypeForDef);
-
-  assert(endIt == memberTypes.end());
-
   auto& Ctx = llvm::getGlobalContext();
-  return llvm::StructType::create(Ctx, memberTypes);
+  std::vector<llvm::Type*> memberTypes;
+
+  for (const auto& member : typeDef->MemberDefs)
+  {
+    Type* ty = getTypeLlvm(member->getTypeName());
+    memberTypes.push_back(ty);
+  }
+
+  return llvm::StructType::create(Ctx, memberTypes, typeDef->getTypeName());
 }
 
 // ----------------------------------------------------------------------------
@@ -119,7 +112,7 @@ llvm::Type* TypeLookup::getTypeLlvm(std::string name) const
 
 // ----------------------------------------------------------------------------
 
-Value* TypeLookup::getDefaultInitValue(std::string name) const
+Constant* TypeLookup::getDefaultInitValue(std::string name) const
 {
   auto itPrim = PrimitiveTypesLlvm.find(name);
   if (itPrim != PrimitiveTypesLlvm.end())
@@ -130,11 +123,42 @@ Value* TypeLookup::getDefaultInitValue(std::string name) const
   auto itComp = CompoundTypesLlvm.find(name);
   if (itComp != CompoundTypesLlvm.end())
   {
-    // make value from StructLayout
-    return nullptr;
+    return makeDefaultInitValue(itComp->second);
   }
 
   assert("Unknown type during codegen -- check parser");
+  return nullptr;
+}
+
+// ----------------------------------------------------------------------------
+
+Constant* TypeLookup::makeDefaultInitValue(Type* ty) const
+{
+  if (ty->isStructTy())
+  {
+    std::vector<Constant*> memberDefaults;
+    StructType* compoundTy = static_cast<StructType*>(ty);
+
+    for (Type* memberTy : compoundTy->elements())
+    {
+      Constant* memberDefaultInit = makeDefaultInitValue(memberTy);
+      memberDefaults.push_back(memberDefaultInit);
+    }
+
+    return ConstantStruct::get(compoundTy, memberDefaults);
+  }
+  else
+  {
+    // find primitive default init by llvm type
+    // this implementation is not efficient, but there's only a few
+    for (const auto& entry : PrimitiveTypesLlvm)
+    {
+      if (entry.second.first == ty)
+        return entry.second.second;
+    }
+  }
+
+  assert(false);
   return nullptr;
 }
 

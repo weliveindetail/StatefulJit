@@ -32,14 +32,17 @@ public:
 
   bool hasName(std::string name) const;
   llvm::Type* getTypeLlvm(std::string name) const;
-  llvm::Value* getDefaultInitValue(std::string name) const;
+  llvm::Constant* getDefaultInitValue(std::string name) const;
 
   void clear();
 
 private:
   llvm::DataLayout* DataLayout_rawptr;
   std::map<std::string, llvm::StructType*> CompoundTypesLlvm;
-  std::map<std::string, std::pair<llvm::Type*, llvm::Value*>> PrimitiveTypesLlvm;
+  std::map<std::string, std::pair<llvm::Type*, llvm::Constant*>> PrimitiveTypesLlvm;
 
-  llvm::StructType* makeCompound(TopLevelExprAST::TypeDefs_t::const_reference type);
+  using TypeDef_t = TopLevelExprAST::TypeDefs_t::value_type;
+  llvm::StructType* makeCompound(const TypeDef_t& typeDef);
+
+  llvm::Constant* makeDefaultInitValue(llvm::Type* ty) const;
 };
