@@ -51,12 +51,19 @@ public:
 // Expression class for referencing a variable
 class VariableExprAST : public ExprAST 
 {
-  std::string Name;
-
 public:
-  VariableExprAST(const std::string &Name) : Name(Name) {}
-  const std::string &getName() const { return Name; }
+  VariableExprAST(std::string name, 
+                  std::vector<std::string> memberAccess)
+    : Name(std::move(name))
+    , MemberAccess(std::move(memberAccess)) {}
+
+  std::string getName() const { return Name; }
   llvm::Value *codegen() override;
+
+private:
+  std::string Name;
+  std::vector<std::string> MemberAccess;
+
 };
 
 // ----------------------------------------------------------------------------
@@ -96,6 +103,7 @@ public:
 
   llvm::Value* codegen() override { return nullptr; }
   std::string getTypeName() const { return TyName; }
+  int getMemberIndex(std::string memberName) const;
 
 private:
   std::string TyName;
@@ -116,6 +124,7 @@ public:
 
   llvm::Value* codegen() override { return nullptr; }
   std::string getTypeName() const { return MemberTyDef->getTypeName(); }
+  std::string getMemberName() const { return MemberName; }
 
 private:
   std::string MemberName;

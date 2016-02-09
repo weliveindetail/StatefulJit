@@ -59,14 +59,19 @@ static std::unique_ptr<ExprAST> ParseNumberExpr()
 /// identifierexpr ::= identifier
 static std::unique_ptr<ExprAST> ParseIdentifierExpr() 
 {
-  std::string IdName = IdentifierStr;
+  std::string varName = IdentifierStr;
+  getNextToken(); // eat the identifier
 
-  getNextToken(); // eat identifier.
+  std::vector<std::string> memberAccess;
+  while (CurTok == tok_member_access)
+  {
+    getNextToken(); // eat the '.'
 
-  if (CurTok != '(') // Simple variable ref.
-    return std::make_unique<VariableExprAST>(IdName);
+    memberAccess.push_back(IdentifierStr);
+    getNextToken(); // eat the identifier
+  }
 
-  return nullptr;
+  return std::make_unique<VariableExprAST>(varName, memberAccess);
 }
 
 // ----------------------------------------------------------------------------

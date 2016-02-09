@@ -13,7 +13,7 @@ using llvm::orc::StatefulJit;
 
 static StatefulJit* JitCompiler;
 static IRBuilder<> Builder(getGlobalContext());
-static std::map<std::string, Value *> NamedValues;
+static std::map<std::string, std::pair<TypeDefinitionExprAST*, Value*>> NamedValues;
 static TypeLookup NamedTypes;
 
 // ----------------------------------------------------------------------------
@@ -179,14 +179,45 @@ Value *NumberExprAST::codegen() {
 
 // ----------------------------------------------------------------------------
 
-Value *VariableExprAST::codegen() {
-  // Look this variable up in the function.
-  Value *V = NamedValues[Name];
-  if (!V)
+Value *VariableExprAST::codegen() 
+{
+  auto instanceIt = NamedValues.find(Name);
+  if (instanceIt == NamedValues.end())
     return ErrorV("Unknown variable name");
 
-  // Load the value.
-  return Builder.CreateLoad(V, Name.c_str());
+  TypeDefinitionExprAST* def = instanceIt->second.first;
+  Value* val = instanceIt->second.second;
+
+  if (MemberAccess.empty())
+  {
+    return Builder.CreateLoad(val, Name.c_str());
+  }
+  else
+  {
+    Type* ty = NamedTypes.getTypeLlvm(def->getTypeName());
+    StructType* structTy = static_cast<StructType*>(ty);
+
+    // flat for now
+    std::string memberName = MemberAccess[0];
+    int memberIdx = def->getMemberIndex(memberName);
+
+    Value* memberVal = Builder.CreateStructGEP(structTy, val, memberIdx);
+    return Builder.CreateLoad(memberVal, (Name + "." + memberName).c_str());
+  }
+}
+
+// ----------------------------------------------------------------------------
+
+int TypeDefinitionExprAST::getMemberIndex(std::string memberName) const
+{
+  for (int i = 0; i < MemberDefs.size(); i++)
+  {
+    if (memberName == MemberDefs[i]->getMemberName())
+      return i;
+  }
+
+  assert(false && "Unknown member name");
+  return -1;
 }
 
 // ----------------------------------------------------------------------------
@@ -209,10 +240,10 @@ Value *BinaryExprAST::codegen() {
     if (item == NamedValues.end())
       return ErrorV("Unknown variable name");
 
-    Type* varTy = item->second->getType();
-    Value* typedValue = codegenCastPrimitive(Val, varTy);
+    Value* rawVal = item->second.second;
+    Value* typedValue = codegenCastPrimitive(Val, rawVal->getType());
 
-    Builder.CreateStore(typedValue, item->second);
+    Builder.CreateStore(typedValue, rawVal);
     return Val;
   }
 
@@ -275,7 +306,7 @@ Value *VarDefinitionExprAST::codegen()
   if (initVal)
     codegenInit(valPtr, ty, initVal);
 
-  NamedValues[VarName] = valPtr;
+  NamedValues[VarName] = std::make_pair(VarTyDef, valPtr);
 }
 
 // ----------------------------------------------------------------------------

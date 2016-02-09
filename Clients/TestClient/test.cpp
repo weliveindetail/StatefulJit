@@ -111,6 +111,21 @@ TEST(LanguageFeatures, FlatCompoundTypeDefinitions)
 
 // ----------------------------------------------------------------------------
 
+TEST(LanguageFeatures, FlatCompoundTypeInstantiation)
+{
+  StaticInit();
+  auto jit = SetupStatefulJit();
+
+  EXPECT_EQ(0.0, Eval(*jit, "types t1: struct { int a }" 
+                            "def t1 x1 run 0;"));
+  EXPECT_EQ(0.0, Eval(*jit, "types t2: struct { int b }"
+                            "def t2 x2 run x2.b;"));
+  EXPECT_EQ(0.0, Eval(*jit, "types t3: struct { int c, double d }"
+                            "def t3 x3 run x3.c + x3.d;"));
+}
+
+// ----------------------------------------------------------------------------
+
 TEST(StatefulEvaluation, SingleVariable)
 {
   StaticInit();
