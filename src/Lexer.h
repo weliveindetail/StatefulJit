@@ -24,8 +24,13 @@ enum Token {
   tok_brace_open = -9,
   tok_brace_close = -10,
 
-  // member access
-  tok_member_access = -11
+  // compound type initialization
+  tok_bracket_open = -11,
+  tok_bracket_close = -12,
+
+  // separators
+  tok_list_separator = -13,
+  tok_member_access = -14
 };
 
 static std::string IdentifierStr; // Filled in if tok_identifier
@@ -107,6 +112,24 @@ static int gettok() {
   {
     LastChar = advance();
     return tok_brace_close;
+  }
+
+  if (LastChar == '(')
+  {
+    LastChar = advance();
+    return tok_bracket_open;
+  }
+
+  if (LastChar == ')')
+  {
+    LastChar = advance();
+    return tok_bracket_close;
+  }
+
+  if (LastChar == ',')
+  {
+    LastChar = advance();
+    return tok_list_separator;
   }
 
   if (LastChar == '.')

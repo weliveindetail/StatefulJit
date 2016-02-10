@@ -103,7 +103,9 @@ public:
 
   llvm::Value* codegen() override { return nullptr; }
   std::string getTypeName() const { return TyName; }
+
   int getMemberIndex(std::string memberName) const;
+  TypeMemberDefinitionExprAST* getMemberDef(int idx) const;
 
 private:
   std::string TyName;
@@ -134,12 +136,35 @@ private:
 
 // ----------------------------------------------------------------------------
 
+// Expression class for initializers and initializer lists
+class InitExprAST : public ExprAST
+{
+public:
+  InitExprAST(std::unique_ptr<ExprAST> primitiveInit)
+    : PrimitiveInitExpr(std::move(primitiveInit))
+    , CompoundInitList() {}
+
+  InitExprAST(std::vector<std::unique_ptr<InitExprAST>> compoundInit)
+    : PrimitiveInitExpr(nullptr)
+    , CompoundInitList(std::move(compoundInit)) {}
+
+  llvm::Value* codegen() override { return PrimitiveInitExpr->codegen(); };
+  llvm::Value* codegenInit(TypeDefinitionExprAST* typeDef);
+
+private:
+  std::vector<std::unique_ptr<InitExprAST>> CompoundInitList;
+  std::unique_ptr<ExprAST> PrimitiveInitExpr;
+
+};
+
+// ----------------------------------------------------------------------------
+
 // Expression class for defining a variable
 class VarDefinitionExprAST : public ExprAST
 {
 public:
   VarDefinitionExprAST(
-    std::string name, TypeDefinitionExprAST* type, std::unique_ptr<ExprAST> init)
+    std::string name, TypeDefinitionExprAST* type, std::unique_ptr<InitExprAST> init)
     : VarName(std::move(name)), VarTyDef(type), VarInit(std::move(init)) {}
 
   llvm::Value* codegen() override;
@@ -147,7 +172,7 @@ public:
 private:
   std::string VarName;
   TypeDefinitionExprAST* VarTyDef;
-  std::unique_ptr<ExprAST> VarInit;
+  std::unique_ptr<InitExprAST> VarInit;
 
   std::pair<llvm::Value*, bool> codegenDefinition(llvm::Type* ty);
 

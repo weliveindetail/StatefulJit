@@ -201,8 +201,8 @@ Value *VariableExprAST::codegen()
     std::string memberName = MemberAccess[0];
     int memberIdx = def->getMemberIndex(memberName);
 
-    Value* memberVal = Builder.CreateStructGEP(structTy, val, memberIdx);
-    return Builder.CreateLoad(memberVal, (Name + "." + memberName).c_str());
+    Value* memberPtr = Builder.CreateStructGEP(structTy, val, memberIdx);
+    return Builder.CreateLoad(memberPtr, (Name + "." + memberName).c_str());
   }
 }
 
@@ -218,6 +218,13 @@ int TypeDefinitionExprAST::getMemberIndex(std::string memberName) const
 
   assert(false && "Unknown member name");
   return -1;
+}
+
+// ----------------------------------------------------------------------------
+
+TypeMemberDefinitionExprAST* TypeDefinitionExprAST::getMemberDef(int idx) const
+{
+  return MemberDefs[idx].get();
 }
 
 // ----------------------------------------------------------------------------
@@ -280,15 +287,51 @@ Value *BinaryExprAST::codegen() {
 
 // ----------------------------------------------------------------------------
 
-Value *VarDefinitionExprAST::codegen()
+Value* InitExprAST::codegenInit(TypeDefinitionExprAST* typeDef)
 {
-  ExprAST *initExpr_rawptr = VarInit.get();
+  if (PrimitiveInitExpr)
+  {
+    return PrimitiveInitExpr->codegen();
+  }
+  else
+  {
+    std::string typeName = typeDef->getTypeName();
+
+    Type* ty = NamedTypes.getTypeLlvm(typeName);
+    StructType* compoundTy = static_cast<StructType*>(ty);
+
+    Value* compoundValPtr = Builder.CreateAlloca(compoundTy);
+
+    for (int i = 0; i < CompoundInitList.size(); i++)
+    {
+      // flat for now
+      Value* memberPtr = Builder.CreateStructGEP(compoundTy, compoundValPtr, i);
+
+      std::string memberTypeName = typeDef->getMemberDef(i)->getTypeName();
+      Type* memberTy = NamedTypes.getTypeLlvm(memberTypeName);
+
+      Value* initVal = CompoundInitList[i]->codegen();
+      Value* memberInitVal = codegenCastPrimitive(initVal, memberTy);
+
+      Builder.CreateStore(memberInitVal, memberPtr);
+    }
+
+    return compoundValPtr;
+  }
+}
+
+// ----------------------------------------------------------------------------
+
+Value* VarDefinitionExprAST::codegen()
+{
+  InitExprAST *initExpr_rawptr = VarInit.get();
+  Type* ty = NamedTypes.getTypeLlvm(VarTyDef->getTypeName());
 
   // keep nullptr if there is no explicit init expression
   Value *initVal = nullptr;
   if (initExpr_rawptr)
   {
-    initVal = initExpr_rawptr->codegen();
+    initVal = initExpr_rawptr->codegenInit(VarTyDef);
     if (!initVal)
       return nullptr;
   }
@@ -296,7 +339,6 @@ Value *VarDefinitionExprAST::codegen()
   // compile new variable allocation
   Value* valPtr;
   bool requiresInit;
-  Type* ty = NamedTypes.getTypeLlvm(VarTyDef->getTypeName());
 
   std::tie(valPtr, requiresInit) = codegenDefinition(ty);
 
@@ -317,11 +359,18 @@ void VarDefinitionExprAST::codegenInit(Value* valPtr, Type* valTy, Value* init)
 
   if (valTy->isStructTy())
   {
-    // do explicit initialization for compound types
-
-    // implicit initialization has correct type
-    assert(valTy == init->getType());
-    typedInitValue = init;
+    if (isa<Constant>(init))
+    {
+      // implicit init assigns constant value
+      assert(valTy == init->getType());
+      typedInitValue = init;
+    }
+    else
+    {
+      // explicit init loads value from pointer
+      assert(PointerType::getUnqual(valTy) == init->getType());
+      typedInitValue = Builder.CreateLoad(init);
+    }
   }
   else
   {

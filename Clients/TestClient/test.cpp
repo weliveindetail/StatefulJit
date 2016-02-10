@@ -116,12 +116,42 @@ TEST(LanguageFeatures, FlatCompoundTypeInstantiation)
   StaticInit();
   auto jit = SetupStatefulJit();
 
-  EXPECT_EQ(0.0, Eval(*jit, "types t1: struct { int a }" 
-                            "def t1 x1 run 0;"));
-  EXPECT_EQ(0.0, Eval(*jit, "types t2: struct { int b }"
-                            "def t2 x2 run x2.b;"));
-  EXPECT_EQ(0.0, Eval(*jit, "types t3: struct { int c, double d }"
-                            "def t3 x3 run x3.c + x3.d;"));
+  // default initialization
+  EXPECT_EQ(0.0, Eval(*jit, 
+    "types t1: struct { int a }" 
+    "def t1 x1 run 0;"
+  ));
+  EXPECT_EQ(0.0, Eval(*jit, 
+    "types t2: struct { int b }"
+    "def t2 x2 run x2.b;"
+  ));
+  EXPECT_EQ(0.0, Eval(*jit, 
+    "types t3: struct { int c, double d }"
+    "def t3 x3 run x3.c + x3.d;"
+  ));
+
+  // explicit initialization
+  EXPECT_EQ(1.0, Eval(*jit, 
+    "types t4: struct { int e }"
+    "def t4 x4 = (1) run x4.e;"
+  ));
+  EXPECT_EQ(2.0, Eval(*jit, 
+    "types t5: struct { int f, double g }"
+    "def t5 x5 = (2 + 1, 1) run x5.f - x5.g;"
+  ));
+  EXPECT_EQ(3.0, Eval(*jit, R"(
+    types t6: struct { int h, double i }
+    def double j = 3,
+        t6 x6 = (j, j * j)
+    run x6.i - 2 * x6.h;
+  )"));
+  EXPECT_EQ(4.0, Eval(*jit, R"(
+    types t7: struct { int k },
+          t8: struct { double l, int m }
+    def t7 x7 = (1 - 2),
+        t8 x8 = (x7.k, x7.k * x7.k)
+    run 3 * x8.m - x7.k;
+  )"));
 }
 
 // ----------------------------------------------------------------------------

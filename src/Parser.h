@@ -76,6 +76,41 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr()
 
 // ----------------------------------------------------------------------------
 
+/// initexpr ::= unary binoprhs | '(' initexpr [',' initexpr]* ')'
+static std::unique_ptr<InitExprAST> ParseInitExpression()
+{
+  if (CurTok == tok_bracket_open)
+  {
+    getNextToken(); // eat the '('
+    std::vector<std::unique_ptr<InitExprAST>> compoundInit;
+
+    while (1)
+    {
+      compoundInit.push_back(ParseInitExpression());
+
+      // End of list, exit loop
+      if (CurTok != tok_list_separator)
+        break;
+
+      getNextToken(); // eat the ','
+    }
+
+    if (CurTok != tok_bracket_close)
+      assert(false && "expected closing ')' after initializer list");
+
+    getNextToken(); // eat the ')'
+
+    return std::make_unique<InitExprAST>(std::move(compoundInit));
+  }
+  else
+  {
+    auto primitiveInit = ParseExpression();
+    return std::make_unique<InitExprAST>(std::move(primitiveInit));
+  }
+}
+
+// ----------------------------------------------------------------------------
+
 /// vardef ::= ('double'|'int') identifier ('=' expression)?
 static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
 {
@@ -99,11 +134,11 @@ static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
   getNextToken(); // eat the variable name
 
   // read the optional initializer
-  std::unique_ptr<ExprAST> init = nullptr;
+  std::unique_ptr<InitExprAST> init = nullptr;
   if (CurTok == '=') {
     getNextToken(); // eat the '='
 
-    init = ParseExpression();
+    init = ParseInitExpression();
     if (!init)
       return nullptr;
   }
@@ -173,7 +208,7 @@ static std::unique_ptr<ExprAST> ParseCompoundTypeDefinitionExpr()
     memberDefs.push_back(std::unique_ptr<MemberDef_t>(memberDef_rawptr));
 
     // End of member list, exit loop
-    if (CurTok != ',')
+    if (CurTok != tok_list_separator)
       break;
 
     getNextToken(); // eat the ','
@@ -278,7 +313,7 @@ void TopLevelExprAST::ParseTypeSection()
     auto* typeDef_rawptr = static_cast<TypeDefinitionExprAST*>(typeDef.release());
     TypeDefinitions.push_back(std::unique_ptr<TypeDefinitionExprAST>(typeDef_rawptr));
 
-    if (CurTok != ',')
+    if (CurTok != tok_list_separator)
       break;
 
     getNextToken(); // eat the ','
@@ -300,7 +335,7 @@ void TopLevelExprAST::ParseVarSection()
   {
     VarDefinitions.push_back(ParseVarDefinitionExpr());
 
-    if (CurTok != ',')
+    if (CurTok != tok_list_separator)
       break;
 
     getNextToken(); // eat the ','
