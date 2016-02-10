@@ -18,7 +18,7 @@ static int getNextToken() { return CurTok = gettok(); }
 
 // Workaround yet another MSVC bug:
 // https://connect.microsoft.com/VisualStudio/feedback/details/1298009
-using ResolveType_f = std::function<TypeDefinitionExprAST*(std::string)>;
+using ResolveType_f = std::function<TypeDefinition*(std::string)>;
 static ResolveType_f resolveTypeHack;
 
 /// BinopPrecedence - This holds the precedence for each binary operator that is
@@ -117,7 +117,7 @@ static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
   if (CurTok != tok_identifier)
     return Error("expected identifier for variable type");
 
-  TypeDefinitionExprAST* type_rawptr = resolveTypeHack(IdentifierStr);
+  TypeDefinition* type_rawptr = resolveTypeHack(IdentifierStr);
 
   if (!type_rawptr)
   {
@@ -150,62 +150,56 @@ static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
 // ----------------------------------------------------------------------------
 
 /// memdef ::= ('double'|'int') identifier
-static std::unique_ptr<ExprAST> ParseCompoundMemberDefinitionExpr()
+static std::unique_ptr<TypeMemberDefinition> ParseCompoundMemberDefinitionStmt()
 {
   if (CurTok != tok_identifier)
-    return Error("expected identifier for member type");
+    assert(false && "expected identifier for member type");
 
-  TypeDefinitionExprAST* type_rawptr = resolveTypeHack(IdentifierStr);
+  TypeDefinition* type_rawptr = resolveTypeHack(IdentifierStr);
 
   if (!type_rawptr)
   {
     std::string msg = "unknown type '" + IdentifierStr + "'";
-    return Error(msg.c_str());
+    assert(false && msg.c_str());
   }
 
   getNextToken(); // eat identifier
   if (CurTok != tok_identifier)
-    return Error("expected identifier for member name");
+    assert(false && "expected identifier for member name");
 
   std::string name = IdentifierStr;
   getNextToken(); // eat identifier
 
-  return std::make_unique<TypeMemberDefinitionExprAST>(
+  return std::make_unique<TypeMemberDefinition>(
     std::move(name), type_rawptr);
 }
 
 // ----------------------------------------------------------------------------
 
 /// tydef ::= tyname ':' 'struct' '{' memdef (',' memdef)* '}'
-static std::unique_ptr<ExprAST> ParseCompoundTypeDefinitionExpr()
+static std::unique_ptr<TypeDefinition> ParseCompoundTypeDefinitionStmt()
 {
   std::string name = IdentifierStr;
 
   getNextToken(); // eat the identifier
   if (CurTok != tok_colon)
-    return Error("expected ':' after type identifier");
+    assert(false && "expected ':' after type identifier");
 
   getNextToken(); // eat the colon
   if (CurTok != tok_struct)
-    return Error("expected 'struct' for compound type definition");
+    assert(false && "expected 'struct' for compound type definition");
 
   getNextToken(); // eat the 'struct'
   if (CurTok != tok_brace_open)
-    return Error("expected opening '{' for compound type definition");
+    assert(false && "expected opening '{' for compound type definition");
 
   getNextToken(); // eat the brace
 
-  using MemberDef_t = TypeMemberDefinitionExprAST;
-  std::vector<std::unique_ptr<MemberDef_t>> memberDefs;
+  std::vector<std::unique_ptr<TypeMemberDefinition>> memberDefs;
 
   while (1)
   {
-    auto memberDef = ParseCompoundMemberDefinitionExpr();
-
-    // note that this hack ignores the unique_ptr's deleter, 
-    // which is fine as it is defined virtual in the base class
-    auto* memberDef_rawptr = static_cast<MemberDef_t*>(memberDef.release());
-    memberDefs.push_back(std::unique_ptr<MemberDef_t>(memberDef_rawptr));
+    memberDefs.push_back(ParseCompoundMemberDefinitionStmt());
 
     // End of member list, exit loop
     if (CurTok != tok_list_separator)
@@ -214,17 +208,17 @@ static std::unique_ptr<ExprAST> ParseCompoundTypeDefinitionExpr()
     getNextToken(); // eat the ','
 
     if (CurTok != tok_identifier)
-      return Error("expected identifier for variable type after ','");
+      assert(false && "expected identifier for variable type after ','");
   }
 
   // At this point, we have to have '}'
   if (CurTok != tok_brace_close)
-    return Error("expected closing '}' after compound type definition");
+    assert(false && "expected closing '}' after compound type definition");
 
   getNextToken(); // eat the brace
 
   bool flagPrimitive = false;
-  return std::make_unique<TypeDefinitionExprAST>(
+  return std::make_unique<TypeDefinition>(
     std::move(name), std::move(memberDefs), flagPrimitive);
 }
 
@@ -306,12 +300,7 @@ void TopLevelExprAST::ParseTypeSection()
 
   while (1)
   {
-    auto typeDef = ParseCompoundTypeDefinitionExpr();
-
-    // note that this hack ignores the unique_ptr's deleter, 
-    // which is fine as it is defined virtual in the base class
-    auto* typeDef_rawptr = static_cast<TypeDefinitionExprAST*>(typeDef.release());
-    TypeDefinitions.push_back(std::unique_ptr<TypeDefinitionExprAST>(typeDef_rawptr));
+    TypeDefinitions.push_back(ParseCompoundTypeDefinitionStmt());
 
     if (CurTok != tok_list_separator)
       break;
@@ -361,18 +350,18 @@ void TopLevelExprAST::InitPrimitiveTypes()
   assert(TypeDefinitions.empty());
   bool isPrimitive = true;
 
-  auto* tyDouble = new TypeDefinitionExprAST("double", {}, isPrimitive);
-  TypeDefinitions.push_back(std::unique_ptr<TypeDefinitionExprAST>(tyDouble));
+  auto* tyDouble = new TypeDefinition("double", {}, isPrimitive);
+  TypeDefinitions.push_back(std::unique_ptr<TypeDefinition>(tyDouble));
 
-  auto* tyInt = new TypeDefinitionExprAST("int", {}, isPrimitive);
-  TypeDefinitions.push_back(std::unique_ptr<TypeDefinitionExprAST>(tyInt));
+  auto* tyInt = new TypeDefinition("int", {}, isPrimitive);
+  TypeDefinitions.push_back(std::unique_ptr<TypeDefinition>(tyInt));
 }
 
 // ----------------------------------------------------------------------------
 
-TypeDefinitionExprAST* TopLevelExprAST::ResolveTypeDefinition(std::string name)
+TypeDefinition* TopLevelExprAST::ResolveTypeDefinition(std::string name)
 {
-  auto matchName = [name](std::unique_ptr<TypeDefinitionExprAST>& ty) {
+  auto matchName = [name](std::unique_ptr<TypeDefinition>& ty) {
     return name == ty->getTypeName();
   };
 

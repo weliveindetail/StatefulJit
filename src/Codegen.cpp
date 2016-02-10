@@ -13,7 +13,7 @@ using llvm::orc::StatefulJit;
 
 static StatefulJit* JitCompiler;
 static IRBuilder<> Builder(getGlobalContext());
-static std::map<std::string, std::pair<TypeDefinitionExprAST*, Value*>> NamedValues;
+static std::map<std::string, std::pair<TypeDefinition*, Value*>> NamedValues;
 static TypeLookup NamedTypes;
 
 // ----------------------------------------------------------------------------
@@ -185,7 +185,7 @@ Value *VariableExprAST::codegen()
   if (instanceIt == NamedValues.end())
     return ErrorV("Unknown variable name");
 
-  TypeDefinitionExprAST* def = instanceIt->second.first;
+  TypeDefinition* def = instanceIt->second.first;
   Value* val = instanceIt->second.second;
 
   if (MemberAccess.empty())
@@ -208,7 +208,7 @@ Value *VariableExprAST::codegen()
 
 // ----------------------------------------------------------------------------
 
-int TypeDefinitionExprAST::getMemberIndex(std::string memberName) const
+int TypeDefinition::getMemberIndex(std::string memberName) const
 {
   for (int i = 0; i < MemberDefs.size(); i++)
   {
@@ -222,7 +222,7 @@ int TypeDefinitionExprAST::getMemberIndex(std::string memberName) const
 
 // ----------------------------------------------------------------------------
 
-TypeMemberDefinitionExprAST* TypeDefinitionExprAST::getMemberDef(int idx) const
+TypeMemberDefinition* TypeDefinition::getMemberDef(int idx) const
 {
   return MemberDefs[idx].get();
 }
@@ -287,7 +287,7 @@ Value *BinaryExprAST::codegen() {
 
 // ----------------------------------------------------------------------------
 
-Value* InitExprAST::codegenInit(TypeDefinitionExprAST* typeDef)
+Value* InitExprAST::codegenInit(TypeDefinition* typeDef)
 {
   if (PrimitiveInitExpr)
   {
@@ -349,6 +349,7 @@ Value* VarDefinitionExprAST::codegen()
     codegenInit(valPtr, ty, initVal);
 
   NamedValues[VarName] = std::make_pair(VarTyDef, valPtr);
+  return valPtr;
 }
 
 // ----------------------------------------------------------------------------
