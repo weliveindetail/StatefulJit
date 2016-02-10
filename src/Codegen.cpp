@@ -13,46 +13,153 @@ using llvm::orc::StatefulJit;
 
 static StatefulJit* JitCompiler;
 static IRBuilder<> Builder(getGlobalContext());
-static std::map<std::string, Value *> NamedValues;
-const PrimitiveTypeLookup TypeDefinitionExprAST::primitiveTypesLlvm;
+static std::map<std::string, std::pair<TypeDefinition*, Value*>> NamedValues;
+static TypeLookup NamedTypes;
 
 // ----------------------------------------------------------------------------
 
-PrimitiveTypeLookup::PrimitiveTypeLookup()
+void TypeLookup::clear()
 {
+  DataLayout_rawptr = nullptr;
+  PrimitiveTypesLlvm.clear();
+  CompoundTypesLlvm.clear();
+}
+
+// ----------------------------------------------------------------------------
+
+void TypeLookup::init(const llvm::DataLayout& dataLayout)
+{
+  DataLayout_rawptr = const_cast<llvm::DataLayout*>(&dataLayout);
+
   auto& Ctx = getGlobalContext();
   constexpr int intBits = sizeof(int) * 8;
 
-  // LLVM types
-  Map["double"].first = llvm::Type::getDoubleTy(Ctx);
-  Map["int"].first = llvm::Type::getIntNTy(Ctx, intBits);
+  PrimitiveTypesLlvm["double"] = std::make_pair(
+    llvm::Type::getDoubleTy(Ctx),
+    ConstantFP::get(Ctx, APFloat(0.0))
+  );
 
-  // default init values
-  Map["double"].second = ConstantFP::get(Ctx, APFloat(0.0));
-  Map["int"].second = ConstantInt::get(Ctx, APInt(intBits, 0, true));
+  PrimitiveTypesLlvm["int"] = std::make_pair(
+    llvm::Type::getIntNTy(Ctx, intBits),
+    ConstantInt::get(Ctx, APInt(intBits, 0, true))
+  );
 }
 
 // ----------------------------------------------------------------------------
 
-bool PrimitiveTypeLookup::hasName(std::string name) const
+void TypeLookup::populate(const TopLevelExprAST::TypeDefs_t& types)
 {
-  return (Map.find(name) != Map.end());
+  for (const auto& type : types)
+  {
+    if (type->IsPrimitive)
+    {
+      auto it = PrimitiveTypesLlvm.find(type->getTypeName());
+      assert(it != PrimitiveTypesLlvm.end() && "Unknwon primitive type");
+    }
+    else
+    {
+      bool isNew = !hasName(type->getTypeName());
+      assert(isNew && "Ambiguous type name during codegen -- check parser");
+
+      CompoundTypesLlvm[type->getTypeName()] = makeCompound(type);
+    }
+  }
 }
 
 // ----------------------------------------------------------------------------
 
-llvm::Type* PrimitiveTypeLookup::getTypeLlvm(std::string name) const
+llvm::StructType* TypeLookup::makeCompound(const TypeDef_t& typeDef)
 {
-  assert(hasName(name) && "Unknown primitve type name");
-  return Map.at(name).first;
+  auto& Ctx = llvm::getGlobalContext();
+  std::vector<llvm::Type*> memberTypes;
+
+  for (const auto& member : typeDef->MemberDefs)
+  {
+    Type* ty = getTypeLlvm(member->getTypeName());
+    memberTypes.push_back(ty);
+  }
+
+  return llvm::StructType::create(Ctx, memberTypes, typeDef->getTypeName());
 }
 
 // ----------------------------------------------------------------------------
 
-Value* PrimitiveTypeLookup::getDefaultInitValue(std::string name) const
+bool TypeLookup::hasName(std::string name) const
 {
-  assert(hasName(name) && "Unknown primitve type name");
-  return Map.at(name).second;
+  return PrimitiveTypesLlvm.find(name) != PrimitiveTypesLlvm.end() ||
+         CompoundTypesLlvm.find(name) != CompoundTypesLlvm.end();
+}
+
+// ----------------------------------------------------------------------------
+
+llvm::Type* TypeLookup::getTypeLlvm(std::string name) const
+{
+  auto itPrim = PrimitiveTypesLlvm.find(name);
+  if (itPrim != PrimitiveTypesLlvm.end())
+  {
+    return itPrim->second.first;
+  }
+
+  auto itComp = CompoundTypesLlvm.find(name);
+  if (itComp != CompoundTypesLlvm.end())
+  {
+    return itComp->second;
+  }
+
+  assert("Unknown type during codegen -- check parser");
+  return nullptr;
+}
+
+// ----------------------------------------------------------------------------
+
+Constant* TypeLookup::getDefaultInitValue(std::string name) const
+{
+  auto itPrim = PrimitiveTypesLlvm.find(name);
+  if (itPrim != PrimitiveTypesLlvm.end())
+  {
+    return itPrim->second.second;
+  }
+
+  auto itComp = CompoundTypesLlvm.find(name);
+  if (itComp != CompoundTypesLlvm.end())
+  {
+    return makeDefaultInitValue(itComp->second);
+  }
+
+  assert("Unknown type during codegen -- check parser");
+  return nullptr;
+}
+
+// ----------------------------------------------------------------------------
+
+Constant* TypeLookup::makeDefaultInitValue(Type* ty) const
+{
+  if (ty->isStructTy())
+  {
+    std::vector<Constant*> memberDefaults;
+    StructType* compoundTy = static_cast<StructType*>(ty);
+
+    for (Type* memberTy : compoundTy->elements())
+    {
+      Constant* memberDefaultInit = makeDefaultInitValue(memberTy);
+      memberDefaults.push_back(memberDefaultInit);
+    }
+
+    return ConstantStruct::get(compoundTy, memberDefaults);
+  }
+  else
+  {
+    // find primitive default init by llvm type
+    // this implementation is not efficient, but there's only a few
+    for (const auto& entry : PrimitiveTypesLlvm)
+    {
+      if (entry.second.first == ty)
+        return entry.second.second;
+    }
+  }
+
+  assert(false);
+  return nullptr;
 }
 
 // ----------------------------------------------------------------------------
@@ -72,14 +179,52 @@ Value *NumberExprAST::codegen() {
 
 // ----------------------------------------------------------------------------
 
-Value *VariableExprAST::codegen() {
-  // Look this variable up in the function.
-  Value *V = NamedValues[Name];
-  if (!V)
+Value *VariableExprAST::codegen() 
+{
+  auto instanceIt = NamedValues.find(Name);
+  if (instanceIt == NamedValues.end())
     return ErrorV("Unknown variable name");
 
-  // Load the value.
-  return Builder.CreateLoad(V, Name.c_str());
+  TypeDefinition* def = instanceIt->second.first;
+  Value* val = instanceIt->second.second;
+
+  if (MemberAccess.empty())
+  {
+    return Builder.CreateLoad(val, Name.c_str());
+  }
+  else
+  {
+    Type* ty = NamedTypes.getTypeLlvm(def->getTypeName());
+    StructType* structTy = static_cast<StructType*>(ty);
+
+    // flat for now
+    std::string memberName = MemberAccess[0];
+    int memberIdx = def->getMemberIndex(memberName);
+
+    Value* memberPtr = Builder.CreateStructGEP(structTy, val, memberIdx);
+    return Builder.CreateLoad(memberPtr, (Name + "." + memberName).c_str());
+  }
+}
+
+// ----------------------------------------------------------------------------
+
+int TypeDefinition::getMemberIndex(std::string memberName) const
+{
+  for (int i = 0; i < MemberDefs.size(); i++)
+  {
+    if (memberName == MemberDefs[i]->getMemberName())
+      return i;
+  }
+
+  assert(false && "Unknown member name");
+  return -1;
+}
+
+// ----------------------------------------------------------------------------
+
+TypeMemberDefinition* TypeDefinition::getMemberDef(int idx) const
+{
+  return MemberDefs[idx].get();
 }
 
 // ----------------------------------------------------------------------------
@@ -102,10 +247,10 @@ Value *BinaryExprAST::codegen() {
     if (item == NamedValues.end())
       return ErrorV("Unknown variable name");
 
-    Type* varTy = item->second->getType();
-    Value* typedValue = codegenCastPrimitive(Val, varTy);
+    Value* rawVal = item->second.second;
+    Value* typedValue = codegenCastPrimitive(Val, rawVal->getType());
 
-    Builder.CreateStore(typedValue, item->second);
+    Builder.CreateStore(typedValue, rawVal);
     return Val;
   }
 
@@ -142,15 +287,51 @@ Value *BinaryExprAST::codegen() {
 
 // ----------------------------------------------------------------------------
 
-Value *VarDefinitionExprAST::codegen()
+Value* InitExprAST::codegenInit(TypeDefinition* typeDef)
 {
-  ExprAST *initExpr_rawptr = VarInit.get();
+  if (PrimitiveInitExpr)
+  {
+    return PrimitiveInitExpr->codegen();
+  }
+  else
+  {
+    std::string typeName = typeDef->getTypeName();
+
+    Type* ty = NamedTypes.getTypeLlvm(typeName);
+    StructType* compoundTy = static_cast<StructType*>(ty);
+
+    Value* compoundValPtr = Builder.CreateAlloca(compoundTy);
+
+    for (int i = 0; i < CompoundInitList.size(); i++)
+    {
+      // flat for now
+      Value* memberPtr = Builder.CreateStructGEP(compoundTy, compoundValPtr, i);
+
+      std::string memberTypeName = typeDef->getMemberDef(i)->getTypeName();
+      Type* memberTy = NamedTypes.getTypeLlvm(memberTypeName);
+
+      Value* initVal = CompoundInitList[i]->codegen();
+      Value* memberInitVal = codegenCastPrimitive(initVal, memberTy);
+
+      Builder.CreateStore(memberInitVal, memberPtr);
+    }
+
+    return compoundValPtr;
+  }
+}
+
+// ----------------------------------------------------------------------------
+
+Value* VarDefinitionExprAST::codegen()
+{
+  InitExprAST *initExpr_rawptr = VarInit.get();
+  Type* ty = NamedTypes.getTypeLlvm(VarTyDef->getTypeName());
 
   // keep nullptr if there is no explicit init expression
   Value *initVal = nullptr;
   if (initExpr_rawptr)
   {
-    initVal = initExpr_rawptr->codegen();
+    initVal = initExpr_rawptr->codegenInit(VarTyDef);
     if (!initVal)
       return nullptr;
   }
@@ -158,17 +339,17 @@ Value *VarDefinitionExprAST::codegen()
   // compile new variable allocation
   Value* valPtr;
   bool requiresInit;
-  Type* ty = VarTyDef->getTy();
 
   std::tie(valPtr, requiresInit) = codegenDefinition(ty);
 
   if (requiresInit && !initVal)
-    initVal = VarTyDef->getDefaultInitVal();
+    initVal = NamedTypes.getDefaultInitValue(VarTyDef->getTypeName());
 
   if (initVal)
     codegenInit(valPtr, ty, initVal);
 
-  NamedValues[VarName] = valPtr;
+  NamedValues[VarName] = std::make_pair(VarTyDef, valPtr);
+  return valPtr;
 }
 
 // ----------------------------------------------------------------------------
@@ -179,11 +360,18 @@ void VarDefinitionExprAST::codegenInit(Value* valPtr, Type* valTy, Value* init)
 
   if (valTy->isStructTy())
   {
-    // do explicit initialization for compound types
-
-    // implicit initialization has correct type
-    assert(valTy == init->getType());
-    typedInitValue = init;
+    if (isa<Constant>(init))
+    {
+      // implicit init assigns constant value
+      assert(valTy == init->getType());
+      typedInitValue = init;
+    }
+    else
+    {
+      // explicit init loads value from pointer
+      assert(PointerType::getUnqual(valTy) == init->getType());
+      typedInitValue = Builder.CreateLoad(init);
+    }
   }
   else
   {
@@ -254,7 +442,8 @@ Value* VarDefinitionExprAST::codegenAllocMemory(int varId)
   Value* mallocFn = M->getOrInsertFunction("malloc", mallocSig);
 
   // compile call
-  Constant* dataSize = ConstantExpr::getSizeOf(VarTyDef->getTy());
+  Type* varTy = NamedTypes.getTypeLlvm(VarTyDef->getTypeName());
+  Constant* dataSize = ConstantExpr::getSizeOf(varTy);
   CallInst* mallocCall = CallInst::Create(mallocFn, dataSize, VarName + "_void_ptr");
   Builder.GetInsertBlock()->getInstList().push_back(mallocCall);
 
@@ -339,6 +528,10 @@ Function *TopLevelExprAST::codegen(StatefulJit& jit,
   Function *topLevelFn = Function::Create(signature,
     Function::ExternalLinkage, nameId, module_rawptr);
 
+  // setup type lookup
+  NamedTypes.init(module_rawptr->getDataLayout());
+  NamedTypes.populate(TypeDefinitions);
+
   // prepare codegen
   BasicBlock *BB = BasicBlock::Create(C, "entry", topLevelFn);
   Builder.SetInsertPoint(BB);
@@ -359,12 +552,16 @@ Function *TopLevelExprAST::codegen(StatefulJit& jit,
     verifyFunction(*topLevelFn);
 
     topLevelFn->setName(nameId);
-    return topLevelFn;
   }
   else
   {
     // error reading body
     topLevelFn->eraseFromParent();
-    return nullptr;
+    topLevelFn = nullptr;
   }
+
+  NamedValues.clear();
+  NamedTypes.clear();
+
+  return topLevelFn;
 }

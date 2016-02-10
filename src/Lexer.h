@@ -22,7 +22,15 @@ enum Token {
   tok_colon = -7,
   tok_struct = -8,
   tok_brace_open = -9,
-  tok_brace_close = -10
+  tok_brace_close = -10,
+
+  // compound type initialization
+  tok_bracket_open = -11,
+  tok_bracket_close = -12,
+
+  // separators
+  tok_list_separator = -13,
+  tok_member_access = -14
 };
 
 static std::string IdentifierStr; // Filled in if tok_identifier
@@ -77,7 +85,7 @@ static int gettok() {
     return tok_identifier;
   }
 
-  if (isdigit(LastChar) || LastChar == '.') { // Number: [0-9.]+
+  if (isdigit(LastChar)) { // Number: [0-9][0-9.]+
     std::string NumStr;
     do {
       NumStr += LastChar;
@@ -104,6 +112,30 @@ static int gettok() {
   {
     LastChar = advance();
     return tok_brace_close;
+  }
+
+  if (LastChar == '(')
+  {
+    LastChar = advance();
+    return tok_bracket_open;
+  }
+
+  if (LastChar == ')')
+  {
+    LastChar = advance();
+    return tok_bracket_close;
+  }
+
+  if (LastChar == ',')
+  {
+    LastChar = advance();
+    return tok_list_separator;
+  }
+
+  if (LastChar == '.')
+  {
+    LastChar = advance();
+    return tok_member_access;
   }
 
   // Check for end of file.  Don't eat the EOF.
