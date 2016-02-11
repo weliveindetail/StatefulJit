@@ -10,27 +10,27 @@ enum Token {
   tok_eof = -1,
 
   // primary
-  tok_identifier = -2,
-  tok_number = -3,
+  tok_identifier = -5,
+  tok_number = -6,
 
   // section definition
-  tok_types = -4,
-  tok_variables = -5,
-  tok_execute = -6,
+  tok_types = -10,
+  tok_variables = -11,
+  tok_execute = -12,
 
   // type definition atomics
-  tok_colon = -7,
-  tok_struct = -8,
-  tok_brace_open = -9,
-  tok_brace_close = -10,
+  tok_colon = -15,
+  tok_struct = -16,
+  tok_brace_open = -17,
+  tok_brace_close = -18,
 
   // compound type initialization
-  tok_bracket_open = -11,
-  tok_bracket_close = -12,
+  tok_bracket_open = -20,
+  tok_bracket_close = -21,
 
   // separators
-  tok_list_separator = -13,
-  tok_member_access = -14
+  tok_list_separator = -25,
+  tok_member_access = -26
 };
 
 static std::string IdentifierStr; // Filled in if tok_identifier
@@ -47,8 +47,9 @@ static void SetupTestInput(std::string code) {
   LastChar = ' ';
 }
 
-/// advance - get next char from input
-static char advance() {
+// advance - get next char from input
+static char advance() 
+{
   if (testInput.empty())
     return getchar();
 
@@ -58,8 +59,41 @@ static char advance() {
   return testInput.at(testInputReadPos++);
 }
 
-/// gettok - Return the next token
-static int gettok() {
+static int matchIdentifierToken(std::string identifier) 
+{
+  if (identifier == "run")
+    return tok_execute;
+
+  if (identifier == "def")
+    return tok_variables;
+
+  if (identifier == "types")
+    return tok_types;
+
+  if (identifier == "struct")
+    return tok_struct;
+
+  return tok_identifier;
+}
+
+static int matchSingleCharToken(char character) 
+{
+  switch (character)
+  {
+    default: return 0;
+    case ':': return tok_colon;
+    case '{': return tok_brace_open;
+    case '}': return tok_brace_close;
+    case '(': return tok_bracket_open;
+    case ')': return tok_bracket_close;
+    case ',': return tok_list_separator;
+    case '.': return tok_member_access;
+  }
+}
+
+// gettok - Return the next token
+static int gettok() 
+{
   // Skip any whitespace.
   while (isspace(LastChar))
     LastChar = advance();
@@ -70,19 +104,7 @@ static int gettok() {
     while (isalnum((LastChar = advance())))
       IdentifierStr += LastChar;
 
-    if (IdentifierStr == "run")
-      return tok_execute;
-
-    if (IdentifierStr == "def")
-      return tok_variables;
-
-    if (IdentifierStr == "types")
-      return tok_types;
-
-    if (IdentifierStr == "struct")
-      return tok_struct;
-
-    return tok_identifier;
+    return matchIdentifierToken(IdentifierStr);
   }
 
   if (isdigit(LastChar)) { // Number: [0-9][0-9.]+
@@ -96,46 +118,9 @@ static int gettok() {
     return tok_number;
   }
 
-  if (LastChar == ':')
-  {
+  if (int token = matchSingleCharToken(LastChar)) {
     LastChar = advance();
-    return tok_colon;
-  }
-
-  if (LastChar == '{')
-  {
-    LastChar = advance();
-    return tok_brace_open;
-  }
-
-  if (LastChar == '}')
-  {
-    LastChar = advance();
-    return tok_brace_close;
-  }
-
-  if (LastChar == '(')
-  {
-    LastChar = advance();
-    return tok_bracket_open;
-  }
-
-  if (LastChar == ')')
-  {
-    LastChar = advance();
-    return tok_bracket_close;
-  }
-
-  if (LastChar == ',')
-  {
-    LastChar = advance();
-    return tok_list_separator;
-  }
-
-  if (LastChar == '.')
-  {
-    LastChar = advance();
-    return tok_member_access;
+    return token;
   }
 
   // Check for end of file.  Don't eat the EOF.
