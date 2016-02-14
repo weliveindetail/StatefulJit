@@ -48,6 +48,8 @@ public:
 
 // ----------------------------------------------------------------------------
 
+class TypeDefinition;
+
 // Expression class for referencing a variable
 class VariableExprAST : public ExprAST 
 {
@@ -64,6 +66,8 @@ private:
   std::string Name;
   std::vector<std::string> MemberAccess;
 
+  std::vector<llvm::Value*>
+    computeMemberGepIndices(TypeDefinition* def);
 };
 
 // ----------------------------------------------------------------------------
@@ -125,6 +129,7 @@ public:
 
   std::string getTypeName() const { return MemberTyDef->getTypeName(); }
   std::string getMemberName() const { return MemberName; }
+  TypeDefinition* getTypeDef() const { return MemberTyDef; }
 
 private:
   std::string MemberName;

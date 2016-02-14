@@ -197,13 +197,41 @@ Value *VariableExprAST::codegen()
     Type* ty = NamedTypes.getTypeLlvm(def->getTypeName());
     StructType* structTy = static_cast<StructType*>(ty);
 
-    // flat for now
-    std::string memberName = MemberAccess[0];
-    int memberIdx = def->getMemberIndex(memberName);
+    std::vector<Value*> idxList = computeMemberGepIndices(def);
+    Value* memberPtr = Builder.CreateInBoundsGEP(structTy, val, idxList);
 
-    Value* memberPtr = Builder.CreateStructGEP(structTy, val, memberIdx);
-    return Builder.CreateLoad(memberPtr, (Name + "." + memberName).c_str());
+    return Builder.CreateLoad(memberPtr, Name + "_member");
   }
+}
+
+// ----------------------------------------------------------------------------
+
+std::vector<llvm::Value*>
+VariableExprAST::computeMemberGepIndices(TypeDefinition* def)
+{
+  auto& Ctx = getGlobalContext();
+
+  int idxBits = sizeof(int) * 8;
+  Type* idxTy = Type::getIntNTy(Ctx, idxBits);
+  int memberChainLength = MemberAccess.size();
+
+  std::vector<Value*> idxList;
+  idxList.reserve(memberChainLength + 1);
+
+  idxList.push_back(ConstantInt::get(idxTy, 0, true));
+
+  TypeDefinition* parentTypeDef = def;
+  for (int i = 0; i < memberChainLength; i++)
+  {
+    std::string memberName = MemberAccess[i];
+    int memberIdx = parentTypeDef->getMemberIndex(memberName);
+
+    idxList.push_back(ConstantInt::get(idxTy, memberIdx, true));
+
+    parentTypeDef = parentTypeDef->getMemberDef(memberIdx)->getTypeDef();
+  }
+
+  return idxList;
 }
 
 // ----------------------------------------------------------------------------
