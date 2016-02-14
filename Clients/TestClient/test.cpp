@@ -160,6 +160,93 @@ TEST(LanguageFeatures, FlatCompoundTypeInstantiation)
 
 // ----------------------------------------------------------------------------
 
+TEST(LanguageFeatures, NestedCompoundTypeDefinitions)
+{
+  StaticInit();
+  auto jit = SetupStatefulJit();
+
+  EXPECT_EQ(0.0, Eval(*jit,
+    "types t1: struct { int a }, "
+    "      t2: struct { t1 a } run 0;"
+  ));
+
+  EXPECT_EQ(0.0, Eval(*jit,
+    "types t3: struct { double a }, "
+    "      t4: struct { double a, t3 b },"
+    "      t5: struct { double a, t3 b, t4 c } run 0;"
+  ));
+}
+
+// ----------------------------------------------------------------------------
+
+TEST(LanguageFeatures, NestedCompoundTypeInstantiation)
+{
+  StaticInit();
+  auto jit = SetupStatefulJit();
+
+  // default initialization
+  EXPECT_EQ(0.0, Eval(*jit, R"(
+    types t1: struct { int a },
+          t2: struct { t1 a }
+    def t1 x1, t2 x2 run x1.a - x2.a.a;
+  )"));
+
+  EXPECT_EQ(0.0, Eval(*jit, R"(
+    types t3: struct { double a },
+          t4: struct { double a, t3 b },
+          t5: struct { double a, t3 b, t4 c }
+    def t3 x3, t4 x4, t5 x5 
+    run x3.a - x4.a + x4.b.a - x5.b.a + x5.c.b.a;
+  )"));
+
+  // explicit initialization
+  EXPECT_EQ(1.0, Eval(*jit, R"(
+    types t6: struct { int a },
+          t7: struct { t6 b }
+    def t6 x6 = (1), t7 x7 = (x6) run x7.b.a;
+  )"));
+
+  EXPECT_EQ(2.0, Eval(*jit, R"(
+    types t8: struct { int a },
+          t9: struct { int a, t8 b }
+    def t9 x9 = (1, (2)) run x9.b.a;
+  )"));
+
+  EXPECT_EQ(3.0, Eval(*jit, R"(
+    types t10: struct { int a },
+          t11: struct { t10 b }
+    def t11 x11 = ((3)), t11 y11 = x11 run y11.b.a;
+  )"));
+
+  EXPECT_EQ(4.0, Eval(*jit, R"(
+    types t12: struct { double a },
+          t13: struct { double a, t12 b },
+          t14: struct { double a, t12 b, t13 c }
+    def t12 x12 = (1), t13 x13 = (1, x12), t14 x14 = (4, x12, x13)
+    run x12.a - x13.b.a + x13.b.a - x14.c.b.a + x14.a;
+  )"));
+
+  EXPECT_EQ(5.0, Eval(*jit, R"(
+    types t15: struct { double a },
+          t16: struct { double a, t15 b },
+          t17: struct { double a, t15 b, t16 c },
+          t18: struct { t17 d }
+    def t18 x18 = ((1, (2), (3, (4)))),
+        t17 x17 = x18.d, 
+        t16 x16 = x17.c, 
+        t15 x15 = x17.b, 
+        t17 y17 = (x17.a, x17.b, x17.c),
+        t16 y16 = (x17.c.a, x17.c.b),
+        t15 y15 = (x17.b.a)
+    run x17.a - y17.a + x17.b.a - y17.b.a + x17.c.b.a - y17.c.b.a +
+        x16.a - y16.a + x16.b.a - y16.b.a +
+        x15.a - y15.a +
+        5;
+  )"));
+}
+
+// ----------------------------------------------------------------------------
+
 TEST(StatefulEvaluation, SingleVariable)
 {
   StaticInit();
