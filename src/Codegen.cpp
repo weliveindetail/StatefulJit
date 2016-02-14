@@ -27,21 +27,19 @@ void TypeLookup::clear()
 
 // ----------------------------------------------------------------------------
 
-void TypeLookup::init(const llvm::DataLayout& dataLayout)
+void TypeLookup::init(const DataLayout& dataLayout)
 {
-  DataLayout_rawptr = const_cast<llvm::DataLayout*>(&dataLayout);
+  DataLayout_rawptr = const_cast<DataLayout*>(&dataLayout);
 
-  auto& Ctx = getGlobalContext();
-  constexpr int intBits = sizeof(int) * 8;
+  Type* doubleTy = Type::getDoubleTy(getGlobalContext());
+  Type* intTy = getDefaultIntTy();
 
   PrimitiveTypesLlvm["double"] = std::make_pair(
-    llvm::Type::getDoubleTy(Ctx),
-    ConstantFP::get(Ctx, APFloat(0.0))
+    doubleTy, ConstantFP::get(doubleTy, 0.0)
   );
 
   PrimitiveTypesLlvm["int"] = std::make_pair(
-    llvm::Type::getIntNTy(Ctx, intBits),
-    ConstantInt::get(Ctx, APInt(intBits, 0, true))
+    intTy, ConstantInt::get(intTy, 0, true)
   );
 }
 
@@ -68,18 +66,18 @@ void TypeLookup::populate(const TopLevelExprAST::TypeDefs_t& types)
 
 // ----------------------------------------------------------------------------
 
-llvm::StructType* TypeLookup::makeCompound(const TypeDef_t& typeDef)
+StructType* TypeLookup::makeCompound(const TypeDef_t& typeDef)
 {
-  auto& Ctx = llvm::getGlobalContext();
-  std::vector<llvm::Type*> memberTypes;
+  std::vector<Type*> memberTys;
 
   for (const auto& member : typeDef->MemberDefs)
   {
     Type* ty = getTypeLlvm(member->getTypeName());
-    memberTypes.push_back(ty);
+    memberTys.push_back(ty);
   }
 
-  return llvm::StructType::create(Ctx, memberTypes, typeDef->getTypeName());
+  auto& ctx = getGlobalContext();
+  return StructType::create(ctx, memberTys, typeDef->getTypeName());
 }
 
 // ----------------------------------------------------------------------------
@@ -92,7 +90,7 @@ bool TypeLookup::hasName(std::string name) const
 
 // ----------------------------------------------------------------------------
 
-llvm::Type* TypeLookup::getTypeLlvm(std::string name) const
+Type* TypeLookup::getTypeLlvm(std::string name) const
 {
   auto itPrim = PrimitiveTypesLlvm.find(name);
   if (itPrim != PrimitiveTypesLlvm.end())
@@ -206,18 +204,16 @@ Value *VariableExprAST::codegen()
 
 // ----------------------------------------------------------------------------
 
-std::vector<llvm::Value*>
+std::vector<Value*>
 VariableExprAST::computeMemberGepIndices(TypeDefinition* def)
 {
-  auto& Ctx = getGlobalContext();
-
-  int idxBits = sizeof(int) * 8;
-  Type* idxTy = Type::getIntNTy(Ctx, idxBits);
+  Type* idxTy = getDefaultIntTy();
   int memberChainLength = MemberAccess.size();
 
   std::vector<Value*> idxList;
   idxList.reserve(memberChainLength + 1);
 
+  // initial struct deref, as it is a pointer itself
   idxList.push_back(ConstantInt::get(idxTy, 0, true));
 
   TypeDefinition* parentTypeDef = def;
@@ -427,7 +423,7 @@ std::pair<Value*, bool> VarDefinitionExprAST::codegenDefinition(Type* ty)
   }
 
   // cast pointer to type
-  Type* ptrTy = PointerType::getUnqual(ty);
+  Type* ptrTy = ty->getPointerTo();
   Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
 
   return std::make_pair(typedPtr, requiresInit);
@@ -482,8 +478,7 @@ void VarDefinitionExprAST::codegenSubmitMemoryLocation(int VarId, Value* VoidPtr
 
   // declare function
   Type* retTy = Type::getVoidTy(C);
-  int intBits = sizeof(int) * 8;
-  Type* argVarIdTy = Type::getIntNTy(C, intBits);
+  Type* argVarIdTy = getDefaultIntTy();
   Type* argAddrPtrTy = Type::getInt8PtrTy(C);
 
   FunctionType* signature =
@@ -494,7 +489,7 @@ void VarDefinitionExprAST::codegenSubmitMemoryLocation(int VarId, Value* VoidPtr
 
   // compile call
   Constant* varIdConst =
-    ConstantInt::get(argVarIdTy, APInt(intBits, VarId, true));
+    ConstantInt::get(argVarIdTy, VarId, true);
 
   ArrayRef<Value*> params({ varIdConst, VoidPtr });
   CallInst* setMemLocationCall = CallInst::Create(submitMemLocFn, params);

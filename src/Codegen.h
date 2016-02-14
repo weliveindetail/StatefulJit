@@ -12,7 +12,7 @@ using llvm::IRBuilder;
 using llvm::AllocaInst;
 
 // Create alloca instruction for mutable variables
-inline static AllocaInst *CreateEntryBlockAlloca(Function *TheFunction, const std::string &VarName) 
+static AllocaInst *CreateEntryBlockAlloca(Function *TheFunction, const std::string &VarName) 
 {
   auto type = Type::getDoubleTy(llvm::getGlobalContext());
 
@@ -20,6 +20,14 @@ inline static AllocaInst *CreateEntryBlockAlloca(Function *TheFunction, const st
   IRBuilder<> TmpB(&entryBB, entryBB.begin());
 
   return TmpB.CreateAlloca(type, nullptr, VarName.c_str());
+}
+
+// ----------------------------------------------------------------------------
+
+static Type* getDefaultIntTy()
+{
+  constexpr int bits = sizeof(int) * 8;
+  return Type::getIntNTy(llvm::getGlobalContext(), bits);
 }
 
 // ----------------------------------------------------------------------------
