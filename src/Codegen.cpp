@@ -291,7 +291,19 @@ Value* InitExprAST::codegenInit(TypeDefinition* typeDef)
 {
   if (PrimitiveInitExpr)
   {
-    return PrimitiveInitExpr->codegen();
+    Value* val = PrimitiveInitExpr->codegen();
+    Type* expectedTy = NamedTypes.getTypeLlvm(typeDef->getTypeName());
+
+    if (expectedTy->isStructTy())
+    {
+      assert(val->getType() == expectedTy);
+      return val;
+    }
+    else
+    {
+      // primitive types are subject to implicit casting
+      return codegenCastPrimitive(val, expectedTy);
+    }
   }
   else
   {
@@ -316,7 +328,7 @@ Value* InitExprAST::codegenInit(TypeDefinition* typeDef)
       Builder.CreateStore(memberInitVal, memberPtr);
     }
 
-    return compoundValPtr;
+    return Builder.CreateLoad(compoundValPtr, "tmp");
   }
 }
 
@@ -356,29 +368,16 @@ Value* VarDefinitionExprAST::codegen()
 
 void VarDefinitionExprAST::codegenInit(Value* valPtr, Type* valTy, Value* init)
 {
-  Value* typedInitValue;
-
   if (valTy->isStructTy())
   {
-    if (isa<Constant>(init))
-    {
-      // implicit init assigns constant value
-      assert(valTy == init->getType());
-      typedInitValue = init;
-    }
-    else
-    {
-      // explicit init loads value from pointer
-      assert(PointerType::getUnqual(valTy) == init->getType());
-      typedInitValue = Builder.CreateLoad(init);
-    }
+    assert(init->getType() == valTy);
+    Builder.CreateStore(init, valPtr);
   }
   else
   {
-    typedInitValue = codegenCastPrimitive(init, valTy);
+    Value* typedInitValue = codegenCastPrimitive(init, valTy);
+    Builder.CreateStore(typedInitValue, valPtr);
   }
-
-  Builder.CreateStore(typedInitValue, valPtr);
 }
 
 // ----------------------------------------------------------------------------

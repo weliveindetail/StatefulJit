@@ -152,6 +152,10 @@ TEST(LanguageFeatures, FlatCompoundTypeInstantiation)
         t8 x8 = (x7.k, x7.k * x7.k)
     run 3 * x8.m - x7.k;
   )"));
+  EXPECT_EQ(5.0, Eval(*jit, R"(
+    types t9: struct { int n }
+    def t9 x9 = (5), t9 y9 = x9 run y9.n;
+  )"));
 }
 
 // ----------------------------------------------------------------------------
