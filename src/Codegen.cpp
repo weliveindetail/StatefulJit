@@ -335,25 +335,21 @@ Value* InitExprAST::codegenInit(TypeDefinition* typeDef)
   }
   else
   {
-    std::string typeName = typeDef->getTypeName();
-
-    Type* ty = NamedTypes.getTypeLlvm(typeName);
+    Type* ty = NamedTypes.getTypeLlvm(typeDef->getTypeName());
     StructType* compoundTy = static_cast<StructType*>(ty);
 
     Value* compoundValPtr = Builder.CreateAlloca(compoundTy);
 
     for (int i = 0; i < CompoundInitList.size(); i++)
     {
-      // flat for now
+      TypeMemberDefinition* memberDef = typeDef->getMemberDef(i);
+
+      Type* memberTy = NamedTypes.getTypeLlvm(memberDef->getTypeName());
       Value* memberPtr = Builder.CreateStructGEP(compoundTy, compoundValPtr, i);
 
-      std::string memberTypeName = typeDef->getMemberDef(i)->getTypeName();
-      Type* memberTy = NamedTypes.getTypeLlvm(memberTypeName);
+      Value* initVal = CompoundInitList[i]->codegenInit(memberDef->getTypeDef());
 
-      Value* initVal = CompoundInitList[i]->codegen();
-      Value* memberInitVal = codegenCastPrimitive(initVal, memberTy);
-
-      Builder.CreateStore(memberInitVal, memberPtr);
+      Builder.CreateStore(initVal, memberPtr);
     }
 
     return Builder.CreateLoad(compoundValPtr, "tmp");
