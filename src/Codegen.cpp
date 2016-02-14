@@ -197,13 +197,41 @@ Value *VariableExprAST::codegen()
     Type* ty = NamedTypes.getTypeLlvm(def->getTypeName());
     StructType* structTy = static_cast<StructType*>(ty);
 
-    // flat for now
-    std::string memberName = MemberAccess[0];
-    int memberIdx = def->getMemberIndex(memberName);
+    std::vector<Value*> idxList = computeMemberGepIndices(def);
+    Value* memberPtr = Builder.CreateInBoundsGEP(structTy, val, idxList);
 
-    Value* memberPtr = Builder.CreateStructGEP(structTy, val, memberIdx);
-    return Builder.CreateLoad(memberPtr, (Name + "." + memberName).c_str());
+    return Builder.CreateLoad(memberPtr, Name + "_member");
   }
+}
+
+// ----------------------------------------------------------------------------
+
+std::vector<llvm::Value*>
+VariableExprAST::computeMemberGepIndices(TypeDefinition* def)
+{
+  auto& Ctx = getGlobalContext();
+
+  int idxBits = sizeof(int) * 8;
+  Type* idxTy = Type::getIntNTy(Ctx, idxBits);
+  int memberChainLength = MemberAccess.size();
+
+  std::vector<Value*> idxList;
+  idxList.reserve(memberChainLength + 1);
+
+  idxList.push_back(ConstantInt::get(idxTy, 0, true));
+
+  TypeDefinition* parentTypeDef = def;
+  for (int i = 0; i < memberChainLength; i++)
+  {
+    std::string memberName = MemberAccess[i];
+    int memberIdx = parentTypeDef->getMemberIndex(memberName);
+
+    idxList.push_back(ConstantInt::get(idxTy, memberIdx, true));
+
+    parentTypeDef = parentTypeDef->getMemberDef(memberIdx)->getTypeDef();
+  }
+
+  return idxList;
 }
 
 // ----------------------------------------------------------------------------
@@ -307,25 +335,21 @@ Value* InitExprAST::codegenInit(TypeDefinition* typeDef)
   }
   else
   {
-    std::string typeName = typeDef->getTypeName();
-
-    Type* ty = NamedTypes.getTypeLlvm(typeName);
+    Type* ty = NamedTypes.getTypeLlvm(typeDef->getTypeName());
     StructType* compoundTy = static_cast<StructType*>(ty);
 
     Value* compoundValPtr = Builder.CreateAlloca(compoundTy);
 
     for (int i = 0; i < CompoundInitList.size(); i++)
     {
-      // flat for now
+      TypeMemberDefinition* memberDef = typeDef->getMemberDef(i);
+
+      Type* memberTy = NamedTypes.getTypeLlvm(memberDef->getTypeName());
       Value* memberPtr = Builder.CreateStructGEP(compoundTy, compoundValPtr, i);
 
-      std::string memberTypeName = typeDef->getMemberDef(i)->getTypeName();
-      Type* memberTy = NamedTypes.getTypeLlvm(memberTypeName);
+      Value* initVal = CompoundInitList[i]->codegenInit(memberDef->getTypeDef());
 
-      Value* initVal = CompoundInitList[i]->codegen();
-      Value* memberInitVal = codegenCastPrimitive(initVal, memberTy);
-
-      Builder.CreateStore(memberInitVal, memberPtr);
+      Builder.CreateStore(initVal, memberPtr);
     }
 
     return Builder.CreateLoad(compoundValPtr, "tmp");
