@@ -253,31 +253,8 @@ TypeMemberDefinition* TypeDefinition::getMemberDef(int idx) const
 
 // ----------------------------------------------------------------------------
 
-Value *BinaryExprAST::codegen() {
-  // Special case '=' because we don't want to emit the LHS as an expression.
-  if (Op == '=') {
-    // Assignment requires the LHS to be an identifier.
-    VariableExprAST *LHSE = static_cast<VariableExprAST *>(LHS.get());
-    if (!LHSE)
-      return ErrorV("destination of '=' must be a variable");
-
-    // Codegen the RHS.
-    Value *Val = RHS->codegen();
-    if (!Val)
-      return nullptr;
-
-    // Look up the name.
-    auto item = NamedValues.find(LHSE->getName());
-    if (item == NamedValues.end())
-      return ErrorV("Unknown variable name");
-
-    Value* rawVal = item->second.second;
-    Value* typedValue = codegenCastPrimitive(Val, rawVal->getType());
-
-    Builder.CreateStore(typedValue, rawVal);
-    return Val;
-  }
-
+Value *BinaryExprAST::codegen() 
+{
   Value* L = LHS->codegen();
   Value* R = RHS->codegen();
   if (!L || !R)
