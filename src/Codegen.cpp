@@ -73,7 +73,7 @@ StructType* TypeLookup::makeCompound(const TypeDef_t& typeDef)
   for (const auto& member : typeDef->MemberDefs)
   {
     Type* ty = getTypeLlvm(member->getTypeName());
-    memberTys.push_back(ty);
+    memberTys.push_back(member->isReference() ? ty->getPointerTo() : ty);
   }
 
   auto& ctx = getGlobalContext();
