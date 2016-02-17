@@ -124,16 +124,23 @@ private:
 class TypeMemberDefinition
 {
 public:
-  TypeMemberDefinition(std::string name, TypeDefinition* type)
-    : MemberName(std::move(name)), MemberTyDef(type) {}
+  TypeMemberDefinition(std::string name, 
+                       TypeDefinition* type, 
+                       bool isReference)
+    : MemberName(std::move(name))
+    , MemberTyDef(type) 
+    , MemberIsReference(isReference) {}
 
   std::string getTypeName() const { return MemberTyDef->getTypeName(); }
   std::string getMemberName() const { return MemberName; }
   TypeDefinition* getTypeDef() const { return MemberTyDef; }
 
+  bool isReference() const { return MemberIsReference; }
+
 private:
   std::string MemberName;
   TypeDefinition* MemberTyDef;
+  bool MemberIsReference;
 
 };
 
@@ -166,9 +173,14 @@ private:
 class VarDefinitionExprAST : public ExprAST
 {
 public:
-  VarDefinitionExprAST(
-    std::string name, TypeDefinition* type, std::unique_ptr<InitExprAST> init)
-    : VarName(std::move(name)), VarTyDef(type), VarInit(std::move(init)) {}
+  VarDefinitionExprAST(std::string name, 
+                       TypeDefinition* type, 
+                       std::unique_ptr<InitExprAST> init,
+                       bool isReference)
+    : VarName(std::move(name))
+    , VarTyDef(type)
+    , VarInit(std::move(init)) 
+    , VarIsReference(isReference) {}
 
   llvm::Value* codegen() override;
 
@@ -176,6 +188,7 @@ private:
   std::string VarName;
   TypeDefinition* VarTyDef;
   std::unique_ptr<InitExprAST> VarInit;
+  bool VarIsReference;
 
   std::pair<llvm::Value*, bool> codegenDefinition(llvm::Type* ty);
 

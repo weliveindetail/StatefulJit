@@ -148,7 +148,7 @@ static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
   }
 
   return std::make_unique<VarDefinitionExprAST>(
-    std::move(name), type_rawptr, std::move(init));
+    std::move(name), type_rawptr, std::move(init), isReference);
 }
 
 // ----------------------------------------------------------------------------
@@ -180,7 +180,7 @@ static std::unique_ptr<TypeMemberDefinition> ParseCompoundMemberDefinitionStmt()
   getNextToken(); // eat identifier
 
   return std::make_unique<TypeMemberDefinition>(
-    std::move(name), type_rawptr);
+    std::move(name), type_rawptr, isReference);
 }
 
 // ----------------------------------------------------------------------------
