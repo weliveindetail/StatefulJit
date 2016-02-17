@@ -311,7 +311,7 @@ Value *BinaryExprAST::codegen() {
 
 // ----------------------------------------------------------------------------
 
-Value* InitExprAST::codegenInit(TypeDefinition* typeDef)
+Value* InitExprAST::codegenInitExpr(TypeDefinition* typeDef)
 {
   if (PrimitiveInitExpr)
   {
@@ -343,7 +343,7 @@ Value* InitExprAST::codegenInit(TypeDefinition* typeDef)
       Type* memberTy = NamedTypes.getTypeLlvm(memberDef->getTypeName());
       Value* memberPtr = Builder.CreateStructGEP(compoundTy, compoundValPtr, i);
 
-      Value* initVal = CompoundInitList[i]->codegenInit(memberDef->getTypeDef());
+      Value* initVal = CompoundInitList[i]->codegenInitExpr(memberDef->getTypeDef());
 
       Builder.CreateStore(initVal, memberPtr);
     }
@@ -363,7 +363,7 @@ Value* VarDefinitionExprAST::codegen()
   Value *initVal = nullptr;
   if (initExpr_rawptr)
   {
-    initVal = initExpr_rawptr->codegenInit(VarTyDef);
+    initVal = initExpr_rawptr->codegenInitExpr(VarTyDef);
     if (!initVal)
       return nullptr;
   }
@@ -378,7 +378,7 @@ Value* VarDefinitionExprAST::codegen()
     initVal = NamedTypes.getDefaultInitValue(VarTyDef->getTypeName());
 
   if (initVal)
-    codegenInit(valPtr, ty, initVal);
+    codegenInitValue(valPtr, ty, initVal);
 
   NamedValues[VarName] = std::make_pair(VarTyDef, valPtr);
   return valPtr;
@@ -386,7 +386,7 @@ Value* VarDefinitionExprAST::codegen()
 
 // ----------------------------------------------------------------------------
 
-void VarDefinitionExprAST::codegenInit(Value* valPtr, Type* valTy, Value* init)
+void VarDefinitionExprAST::codegenInitValue(Value* valPtr, Type* valTy, Value* init)
 {
   if (valTy->isStructTy())
   {

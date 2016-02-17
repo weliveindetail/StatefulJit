@@ -159,7 +159,7 @@ public:
     , CompoundInitList(std::move(compoundInit)) {}
 
   llvm::Value* codegen() override { return PrimitiveInitExpr->codegen(); };
-  llvm::Value* codegenInit(TypeDefinition* typeDef);
+  llvm::Value* codegenInitExpr(TypeDefinition* typeDef);
 
 private:
   std::vector<std::unique_ptr<InitExprAST>> CompoundInitList;
@@ -195,7 +195,7 @@ private:
   llvm::Value* codegenReuseMemory(int varId);
   llvm::Value* codegenAllocMemory(int varId);
   void codegenSubmitMemoryLocation(int varId, llvm::Value* voidPtr);
-  void codegenInit(llvm::Value* valPtr, llvm::Type* valTy, llvm::Value* init);
+  void codegenInitValue(llvm::Value* valPtr, llvm::Type* valTy, llvm::Value* init);
 };
 
 // ----------------------------------------------------------------------------
