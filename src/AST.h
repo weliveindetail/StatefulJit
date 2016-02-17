@@ -159,7 +159,7 @@ public:
     , CompoundInitList(std::move(compoundInit)) {}
 
   llvm::Value* codegen() override { return PrimitiveInitExpr->codegen(); };
-  llvm::Value* codegenInitExpr(TypeDefinition* typeDef);
+  llvm::Value* codegenInitExpr(TypeDefinition* typeDef, bool targetIsRefType);
 
 private:
   std::vector<std::unique_ptr<InitExprAST>> CompoundInitList;

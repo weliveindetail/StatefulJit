@@ -311,44 +311,65 @@ Value *BinaryExprAST::codegen() {
 
 // ----------------------------------------------------------------------------
 
-Value* InitExprAST::codegenInitExpr(TypeDefinition* typeDef)
+Value* InitExprAST::codegenInitExpr(TypeDefinition* typeDef, bool targetIsRefType)
 {
-  if (PrimitiveInitExpr)
+  if (targetIsRefType)
   {
-    Value* val = PrimitiveInitExpr->codegen();
-    Type* expectedTy = NamedTypes.getTypeLlvm(typeDef->getTypeName());
+    assert(PrimitiveInitExpr);
+    assert(CompoundInitList.empty());
 
-    if (expectedTy->isStructTy())
-    {
-      assert(val->getType() == expectedTy);
-      return val;
-    }
-    else
-    {
-      // primitive types are subject to implicit casting
-      return codegenCastPrimitive(val, expectedTy);
-    }
+    // must be l-value, return pointer
+    auto* sourceVarExpr = static_cast<VariableExprAST*>(PrimitiveInitExpr.get());
+
+    auto it = NamedValues.find(sourceVarExpr->getName());
+    if (it == NamedValues.end())
+      return ErrorV("Reference to unknown variable name");
+
+    assert(typeDef == it->second.first && "Reference type mismatch");
+    return it->second.second;
   }
   else
   {
-    Type* ty = NamedTypes.getTypeLlvm(typeDef->getTypeName());
-    StructType* compoundTy = static_cast<StructType*>(ty);
-
-    Value* compoundValPtr = Builder.CreateAlloca(compoundTy);
-
-    for (int i = 0; i < CompoundInitList.size(); i++)
+    if (PrimitiveInitExpr)
     {
-      TypeMemberDefinition* memberDef = typeDef->getMemberDef(i);
+      Value* val = PrimitiveInitExpr->codegen();
+      Type* expectedTy = NamedTypes.getTypeLlvm(typeDef->getTypeName());
 
-      Type* memberTy = NamedTypes.getTypeLlvm(memberDef->getTypeName());
-      Value* memberPtr = Builder.CreateStructGEP(compoundTy, compoundValPtr, i);
-
-      Value* initVal = CompoundInitList[i]->codegenInitExpr(memberDef->getTypeDef());
-
-      Builder.CreateStore(initVal, memberPtr);
+      if (expectedTy->isStructTy())
+      {
+        assert(val->getType() == expectedTy);
+        return val;
+      }
+      else
+      {
+        // primitive types are subject to implicit casting
+        return codegenCastPrimitive(val, expectedTy);
+      }
     }
+    else
+    {
+      Type* ty = NamedTypes.getTypeLlvm(typeDef->getTypeName());
+      StructType* compoundTy = static_cast<StructType*>(ty);
 
-    return Builder.CreateLoad(compoundValPtr, "tmp");
+      Value* compoundValPtr = Builder.CreateAlloca(compoundTy);
+
+      for (int i = 0; i < CompoundInitList.size(); i++)
+      {
+        TypeMemberDefinition* memberDef = typeDef->getMemberDef(i);
+
+        TypeDefinition* memberTypeDef = memberDef->getTypeDef();
+        bool memberIsRef = memberDef->isReference();
+
+        Value* initVal = CompoundInitList[i]->codegenInitExpr(memberTypeDef, memberIsRef);
+
+        Type* memberTy = NamedTypes.getTypeLlvm(memberDef->getTypeName());
+        Value* memberPtr = Builder.CreateStructGEP(compoundTy, compoundValPtr, i);
+
+        Builder.CreateStore(initVal, memberPtr);
+      }
+
+      return Builder.CreateLoad(compoundValPtr, "tmp");
+    }
   }
 }
 
@@ -363,7 +384,7 @@ Value* VarDefinitionExprAST::codegen()
   Value *initVal = nullptr;
   if (initExpr_rawptr)
   {
-    initVal = initExpr_rawptr->codegenInitExpr(VarTyDef);
+    initVal = initExpr_rawptr->codegenInitExpr(VarTyDef, VarIsReference);
     if (!initVal)
       return nullptr;
   }
