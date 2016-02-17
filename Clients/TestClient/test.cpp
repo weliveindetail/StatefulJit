@@ -247,6 +247,21 @@ TEST(LanguageFeatures, NestedCompoundTypeInstantiation)
 
 // ----------------------------------------------------------------------------
 
+TEST(LanguageFeatures, References)
+{
+  StaticInit();
+  auto jit = SetupStatefulJit();
+
+  // primitive type reference variables
+  EXPECT_EQ(0.0, Eval(*jit, "def double a, double& b=a run b;"));
+  EXPECT_EQ(1.0, Eval(*jit, "def double c=1, double& d=c run d;"));
+  EXPECT_EQ(2.0, Eval(*jit, "def int e=1+1, int& f=e run f;"));
+  EXPECT_EQ(3.0, Eval(*jit, "def int g=3, int& h=g, int i=h run i;"));
+  EXPECT_EQ(4.0, Eval(*jit, "def int j=2, int& k=j, int& l=k run k+l;"));
+}
+
+// ----------------------------------------------------------------------------
+
 TEST(StatefulEvaluation, SingleVariable)
 {
   StaticInit();

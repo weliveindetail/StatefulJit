@@ -393,12 +393,12 @@ Value* VarDefinitionExprAST::codegen()
   Value* valPtr;
   bool requiresInit;
 
-  std::tie(valPtr, requiresInit) = codegenDefinition(ty);
+  std::tie(valPtr, requiresInit) = codegenDefinition(ty, initVal);
 
   if (requiresInit && !initVal)
     initVal = NamedTypes.getDefaultInitValue(VarTyDef->getTypeName());
 
-  if (initVal)
+  if (initVal && !VarIsReference)
     codegenInitValue(valPtr, ty, initVal);
 
   NamedValues[VarName] = std::make_pair(VarTyDef, valPtr);
@@ -423,12 +423,12 @@ void VarDefinitionExprAST::codegenInitValue(Value* valPtr, Type* valTy, Value* i
 
 // ----------------------------------------------------------------------------
 
-std::pair<Value*, bool> VarDefinitionExprAST::codegenDefinition(Type* ty)
+std::pair<Value*, bool> VarDefinitionExprAST::codegenDefinition(Type* ty, Value* initPtr)
 {
   Value* voidPtr;
   bool requiresInit;
 
-  // this is minimalistic! still only global primitive variables
+  // this is minimalistic! still only global variables
   int varId = JitCompiler->getOrCreateStatefulVariable(VarName, ty);
 
   if (JitCompiler->hasMemLocation(varId))
@@ -438,12 +438,30 @@ std::pair<Value*, bool> VarDefinitionExprAST::codegenDefinition(Type* ty)
   }
   else
   {
-    requiresInit = true;
-    voidPtr = codegenAllocMemory(varId);
-    codegenSubmitMemoryLocation(varId, voidPtr);
+    if (VarIsReference)
+    {
+      // new reference, it doesn't own any memory so we don't need to initialize it
+      requiresInit = true;
+      assert(initPtr->getType() == ty->getPointerTo());
+
+      // this back-and-forth bitcasting doesn't cause overhead, 
+      // but it may be solved better at some point
+      auto& Ctx = getGlobalContext();
+      Type* voidPtrTy = Type::getInt8PtrTy(Ctx);
+      voidPtr = Builder.CreateBitCast(initPtr, voidPtrTy, VarName + "_ptr");
+
+      codegenSubmitMemoryLocation(varId, voidPtr);
+    }
+    else
+    {
+      // regular new instance
+      requiresInit = true;
+      voidPtr = codegenAllocMemory(varId);
+      codegenSubmitMemoryLocation(varId, voidPtr);
+    }
   }
 
-  // cast pointer to type
+  // cast pointer to typed pointer
   Type* ptrTy = ty->getPointerTo();
   Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
 

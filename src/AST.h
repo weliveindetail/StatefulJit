@@ -190,7 +190,8 @@ private:
   std::unique_ptr<InitExprAST> VarInit;
   bool VarIsReference;
 
-  std::pair<llvm::Value*, bool> codegenDefinition(llvm::Type* ty);
+  std::pair<llvm::Value*, bool> 
+    codegenDefinition(llvm::Type* ty, llvm::Value* initPtr);
 
   llvm::Value* codegenReuseMemory(int varId);
   llvm::Value* codegenAllocMemory(int varId);
