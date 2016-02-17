@@ -127,6 +127,10 @@ static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
 
   getNextToken(); // eat the type name
 
+  bool isReference = (CurTok == tok_ref_type);
+  if (isReference)
+    getNextToken(); // eat the '&'
+
   if (CurTok != tok_identifier)
     return Error("expected identifier for variable name");
 
@@ -164,6 +168,11 @@ static std::unique_ptr<TypeMemberDefinition> ParseCompoundMemberDefinitionStmt()
   }
 
   getNextToken(); // eat identifier
+
+  bool isReference = (CurTok == tok_ref_type);
+  if (isReference)
+    getNextToken(); // eat the '&'
+
   if (CurTok != tok_identifier)
     assert(false && "expected identifier for member name");
 
