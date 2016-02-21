@@ -247,6 +247,102 @@ TEST(LanguageFeatures, NestedCompoundTypeInstantiation)
 
 // ----------------------------------------------------------------------------
 
+TEST(LanguageFeatures, References)
+{
+  StaticInit();
+  auto jit = SetupStatefulJit();
+
+  // primitive type reference variables
+  EXPECT_EQ(0.0, Eval(*jit, "def double a, double& b=a run b;"));
+  EXPECT_EQ(1.0, Eval(*jit, "def double c=1, double& d=c run d;"));
+  EXPECT_EQ(2.0, Eval(*jit, "def int e=1+1, int& f=e run f;"));
+  EXPECT_EQ(3.0, Eval(*jit, "def int g=3, int& h=g, int i=h run i;"));
+  EXPECT_EQ(4.0, Eval(*jit, "def int j=2, int& k=j, int& l=k run k+l;"));
+
+  // compound type reference variables
+  EXPECT_EQ(5.0, Eval(*jit, R"(
+    types t1: struct { int a, double b }
+    def t1 x1 = (2, 3), t1& y1 = x1 run y1.a + y1.b;
+  )"));
+
+  // primitive type reference members
+  EXPECT_EQ(6.0, Eval(*jit, R"(
+    types t2: struct { int a, double& b }
+    def double p = 2, t2 x2 = (4, p), t2& y2 = x2 run y2.a + y2.b;
+  )"));
+  EXPECT_EQ(15, Eval(*jit, R"(
+    types t15: struct { double a }
+    def t15 x15 = (15), double& r = x15.a run r;
+  )"));
+
+  // compound type reference members
+  EXPECT_EQ(7.0, Eval(*jit, R"(
+    types t3: struct { int a },
+          t4: struct { t3& b }
+    def t3 x3 = (7), t4 x4 = (x3) run x4.b.a;
+  )"));
+  EXPECT_EQ(8.0, Eval(*jit, R"(
+    types t5: struct { int a },
+          t6: struct { t5& b }
+    def t5 x5 = (8), t5& y5 = x5, t6 x6 = (y5) run x6.b.a;
+  )"));
+  EXPECT_EQ(9.0, Eval(*jit, R"(
+    types t7: struct { int a },
+          t8: struct { t7& b }
+    def t7 x7 = (9), t8 x8 = (x7), t7 y7 = x8.b run y7.a;
+  )"));
+  EXPECT_EQ(10.0, Eval(*jit, R"(
+    types t9: struct { int a },
+          t10: struct { t9& b }
+    def t9 x9 = (10), t10 x10 = (x9), t9& y9 = x10.b run y9.a;
+  )"));
+  EXPECT_EQ(11.0, Eval(*jit, R"(
+    types t11: struct { int a },
+          t12: struct { t11& b }
+    def t11 x11 = (11), t12 x12 = (x11), t12& y12 = x12, t11& y11 = y12.b run y11.a;
+  )"));
+  EXPECT_EQ(12.0, Eval(*jit, R"(
+    types t13: struct { int& a },
+          t14: struct { t13& b }
+    def int q = 12, t13 x13 = (q), t13& y13 = x13, t14 x14 = (y13) run x14.b.a;
+  )"));
+
+  // deep member acccess with value and reference members
+  EXPECT_EQ(20.0, Eval(*jit, R"(
+    types 
+      t20: struct { int a, double b, int& c, double& d },
+      t21: struct { int a, double b, t20& x, double& d },
+      t22: struct { int a, t21&   x, int& c, double& d },
+      t23: struct { int a, double b, int& c, t22     x },
+      t24: struct { t23 x, double b, int& c, double& d },
+      t25: struct { t24 x, double b, int& c, double& d },
+      t26: struct { int a, double b, int& c, t25&    x },
+      t27: struct { int a, t26    x, int& c, double& d },
+      t28: struct { int a, double b, t27& x, double& d }
+
+    def 
+      int i = 1, 
+      double f = 2,
+      int& ii = i, 
+      double& ff = f,
+      t20  x20 = (ii, ff, ii, ff),
+      t21  x21 = (1, 2, x20, f),    t21& y21 = x21,
+      t22  x22 = (1, y21, i, f),    t22& y22 = x22,
+      t23  x23 = (1, 2, i, y22),
+      t24  x24 = (x23, 2, i, f),
+      t25  x25 = (x24, 2, i, f),
+      t26  x26 = (1, 2, i, x25),
+      t27  x27 = (1, x26, i, f),
+      t28  x28 = (1, 2, x27, f)
+
+    run
+      x25.x.x.x.x.x.a + x26.x.x.x.x.x.x.b + 7 +
+      x27.x.x.x.x.x.x.x.c + x28.x.x.x.x.x.x.x.x.d + 7
+  )"));
+}
+
+// ----------------------------------------------------------------------------
+
 TEST(StatefulEvaluation, SingleVariable)
 {
   StaticInit();

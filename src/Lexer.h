@@ -12,6 +12,7 @@ enum Token {
   // primary
   tok_identifier = -5,
   tok_number = -6,
+  tok_ref_type = -7,
 
   // section definition
   tok_types = -10,
@@ -88,6 +89,7 @@ static int matchSingleCharToken(char character)
     case ')': return tok_bracket_close;
     case ',': return tok_list_separator;
     case '.': return tok_member_access;
+    case '&': return tok_ref_type;
   }
 }
 

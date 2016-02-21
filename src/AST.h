@@ -57,7 +57,8 @@ public:
   VariableExprAST(std::string name, 
                   std::vector<std::string> memberAccess)
     : Name(std::move(name))
-    , MemberAccess(std::move(memberAccess)) {}
+    , MemberAccess(std::move(memberAccess))
+    , CodegenForceReference(false) {}
 
   std::string getName() const { return Name; }
   llvm::Value *codegen() override;
@@ -65,9 +66,28 @@ public:
 private:
   std::string Name;
   std::vector<std::string> MemberAccess;
+  bool CodegenForceReference;
 
-  std::vector<llvm::Value*>
-    computeMemberGepIndices(TypeDefinition* def);
+  llvm::Value* resolveCompoundMemberAccess(
+                                    llvm::Value* valuePtr,
+                                    TypeDefinition* typeDef,
+                                    bool isReference,
+                                    int startIdx);
+
+  llvm::Value* computeMemberChainGep(
+                                    llvm::Value* valPtr,
+                                    TypeDefinition* typeDef,
+                                    std::vector<llvm::Value*> idxList);
+
+  // workaround for init expresssions to 
+  // force codegen to always return a pointer
+  void setCodegenForceReference()
+  {
+    assert(!CodegenForceReference);
+    CodegenForceReference = true;
+  }
+
+  friend class InitExprAST;
 };
 
 // ----------------------------------------------------------------------------
@@ -110,6 +130,8 @@ public:
   int getMemberIndex(std::string memberName) const;
   TypeMemberDefinition* getMemberDef(int idx) const;
 
+  bool isPrimitve() const { return IsPrimitive; }
+
 private:
   std::string TyName;
   MemberDefs_t MemberDefs;
@@ -124,16 +146,23 @@ private:
 class TypeMemberDefinition
 {
 public:
-  TypeMemberDefinition(std::string name, TypeDefinition* type)
-    : MemberName(std::move(name)), MemberTyDef(type) {}
+  TypeMemberDefinition(std::string name, 
+                       TypeDefinition* type, 
+                       bool isReference)
+    : MemberName(std::move(name))
+    , MemberTyDef(type) 
+    , MemberIsReference(isReference) {}
 
   std::string getTypeName() const { return MemberTyDef->getTypeName(); }
   std::string getMemberName() const { return MemberName; }
   TypeDefinition* getTypeDef() const { return MemberTyDef; }
 
+  bool isReference() const { return MemberIsReference; }
+
 private:
   std::string MemberName;
   TypeDefinition* MemberTyDef;
+  bool MemberIsReference;
 
 };
 
@@ -152,7 +181,7 @@ public:
     , CompoundInitList(std::move(compoundInit)) {}
 
   llvm::Value* codegen() override { return PrimitiveInitExpr->codegen(); };
-  llvm::Value* codegenInit(TypeDefinition* typeDef);
+  llvm::Value* codegenInitExpr(TypeDefinition* typeDef, bool targetIsRefType);
 
 private:
   std::vector<std::unique_ptr<InitExprAST>> CompoundInitList;
@@ -166,9 +195,14 @@ private:
 class VarDefinitionExprAST : public ExprAST
 {
 public:
-  VarDefinitionExprAST(
-    std::string name, TypeDefinition* type, std::unique_ptr<InitExprAST> init)
-    : VarName(std::move(name)), VarTyDef(type), VarInit(std::move(init)) {}
+  VarDefinitionExprAST(std::string name, 
+                       TypeDefinition* type, 
+                       std::unique_ptr<InitExprAST> init,
+                       bool isReference)
+    : VarName(std::move(name))
+    , VarTyDef(type)
+    , VarInit(std::move(init)) 
+    , VarIsReference(isReference) {}
 
   llvm::Value* codegen() override;
 
@@ -176,13 +210,15 @@ private:
   std::string VarName;
   TypeDefinition* VarTyDef;
   std::unique_ptr<InitExprAST> VarInit;
+  bool VarIsReference;
 
-  std::pair<llvm::Value*, bool> codegenDefinition(llvm::Type* ty);
+  std::pair<llvm::Value*, bool> 
+    codegenDefinition(llvm::Type* ty, llvm::Value* initPtr);
 
   llvm::Value* codegenReuseMemory(int varId);
   llvm::Value* codegenAllocMemory(int varId);
   void codegenSubmitMemoryLocation(int varId, llvm::Value* voidPtr);
-  void codegenInit(llvm::Value* valPtr, llvm::Type* valTy, llvm::Value* init);
+  void codegenInitValue(llvm::Value* valPtr, llvm::Type* valTy, llvm::Value* init);
 };
 
 // ----------------------------------------------------------------------------

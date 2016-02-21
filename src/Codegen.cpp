@@ -13,8 +13,46 @@ using llvm::orc::StatefulJit;
 
 static StatefulJit* JitCompiler;
 static IRBuilder<> Builder(getGlobalContext());
-static std::map<std::string, std::pair<TypeDefinition*, Value*>> NamedValues;
+static ValueLookup NamedValues;
 static TypeLookup NamedTypes;
+
+// ----------------------------------------------------------------------------
+
+void ValueLookup::add(std::string name, Record_t record)
+{
+  assert(!hasName(name));
+  ValueRecords[name] = std::move(record);
+}
+
+// ----------------------------------------------------------------------------
+
+std::pair<bool, ValueLookup::Record_t*> 
+ValueLookup::find(std::string name)
+{
+  auto it = ValueRecords.find(name);
+  if (it == ValueRecords.end())
+  {
+    return std::make_pair(false, nullptr);
+  }
+  else
+  {
+    return std::make_pair(true, &it->second);
+  }
+}
+
+// ----------------------------------------------------------------------------
+
+bool ValueLookup::hasName(std::string name) const
+{
+  return ValueRecords.find(name) != ValueRecords.end();
+}
+
+// ----------------------------------------------------------------------------
+
+void ValueLookup::clear()
+{
+  ValueRecords.clear();
+}
 
 // ----------------------------------------------------------------------------
 
@@ -73,7 +111,7 @@ StructType* TypeLookup::makeCompound(const TypeDef_t& typeDef)
   for (const auto& member : typeDef->MemberDefs)
   {
     Type* ty = getTypeLlvm(member->getTypeName());
-    memberTys.push_back(ty);
+    memberTys.push_back(member->isReference() ? ty->getPointerTo() : ty);
   }
 
   auto& ctx = getGlobalContext();
@@ -179,55 +217,97 @@ Value *NumberExprAST::codegen() {
 
 Value *VariableExprAST::codegen() 
 {
-  auto instanceIt = NamedValues.find(Name);
-  if (instanceIt == NamedValues.end())
+  bool found;
+  ValueLookup::Record_t* namedValue;
+  std::tie(found, namedValue) = NamedValues.find(Name);
+
+  if (!found)
     return ErrorV("Unknown variable name");
 
-  TypeDefinition* def = instanceIt->second.first;
-  Value* val = instanceIt->second.second;
+  assert(namedValue->valuePtr->getType()->isPointerTy());
 
-  if (MemberAccess.empty())
+  // for primitive types, references are currently implemented as 
+  // "weak pointers" that just refer to the same memory as the owner
+  bool isReference = MemberAccess.empty() ? false : namedValue->isReference;
+  int startIdx = 0;
+
+  return resolveCompoundMemberAccess(namedValue->valuePtr,
+                                     namedValue->typeDef,
+                                     isReference,
+                                     startIdx);
+}
+
+// ----------------------------------------------------------------------------
+
+Value* VariableExprAST::resolveCompoundMemberAccess(Value* valuePtr,
+                                                    TypeDefinition* typeDef,
+                                                    bool isReference,
+                                                    int startIdx)
+{
+  Type* idxTy = getDefaultIntTy();
+
+  Value* parentValPtr = valuePtr;
+  int memberChainLength = MemberAccess.size();
+  bool lastMemberWasReference = isReference;
+
+  if (startIdx < memberChainLength)
   {
-    return Builder.CreateLoad(val, Name.c_str());
+    TypeDefinition* parentTypeDef = typeDef;
+    TypeDefinition* nestedTypeDef = parentTypeDef;
+
+    // index through struct pointer
+    std::vector<Value*> idxList { ConstantInt::get(idxTy, 0, true) };
+    assert(NamedTypes.getTypeLlvm(typeDef->getTypeName())->isStructTy());
+
+    for (int i = startIdx; i < memberChainLength; i++)
+    {
+      std::string memberName = MemberAccess[i];
+      int memberIdx = nestedTypeDef->getMemberIndex(memberName);
+
+      idxList.push_back(ConstantInt::get(idxTy, memberIdx, true));
+
+      auto* memberDef = nestedTypeDef->getMemberDef(memberIdx);
+      auto* memberTypeDef = memberDef->getTypeDef();
+
+      if (memberDef->isReference() && !memberTypeDef->isPrimitve())
+      {
+        Value* memberValPtrPtr = computeMemberChainGep(
+          parentValPtr, parentTypeDef, std::move(idxList));
+
+        Value* memberValPtr = Builder.CreateLoad(memberValPtrPtr, Name + "_member");
+
+        int memberIdx = i + 1;
+        return resolveCompoundMemberAccess(memberValPtr, memberTypeDef, false, memberIdx);
+      }
+
+      lastMemberWasReference = memberDef->isReference();
+      nestedTypeDef = memberTypeDef;
+    }
+
+    parentValPtr = computeMemberChainGep(
+      parentValPtr, parentTypeDef, std::move(idxList));
+  }
+
+  if (!lastMemberWasReference && CodegenForceReference)
+  {
+    return parentValPtr;
   }
   else
   {
-    Type* ty = NamedTypes.getTypeLlvm(def->getTypeName());
-    StructType* structTy = static_cast<StructType*>(ty);
-
-    std::vector<Value*> idxList = computeMemberGepIndices(def);
-    Value* memberPtr = Builder.CreateInBoundsGEP(structTy, val, idxList);
-
-    return Builder.CreateLoad(memberPtr, Name + "_member");
+    return Builder.CreateLoad(parentValPtr, Name + "_member");
   }
 }
 
 // ----------------------------------------------------------------------------
 
-std::vector<Value*>
-VariableExprAST::computeMemberGepIndices(TypeDefinition* def)
+Value* VariableExprAST::computeMemberChainGep(Value* valPtr,
+                                              TypeDefinition* typeDef, 
+                                              std::vector<Value*> idxList)
 {
-  Type* idxTy = getDefaultIntTy();
-  int memberChainLength = MemberAccess.size();
+  Type* ty = NamedTypes.getTypeLlvm(typeDef->getTypeName());
+  StructType* structTy = static_cast<StructType*>(ty);
 
-  std::vector<Value*> idxList;
-  idxList.reserve(memberChainLength + 1);
-
-  // initial struct deref, as it is a pointer itself
-  idxList.push_back(ConstantInt::get(idxTy, 0, true));
-
-  TypeDefinition* parentTypeDef = def;
-  for (int i = 0; i < memberChainLength; i++)
-  {
-    std::string memberName = MemberAccess[i];
-    int memberIdx = parentTypeDef->getMemberIndex(memberName);
-
-    idxList.push_back(ConstantInt::get(idxTy, memberIdx, true));
-
-    parentTypeDef = parentTypeDef->getMemberDef(memberIdx)->getTypeDef();
-  }
-
-  return idxList;
+  return Builder.CreateInBoundsGEP(structTy, valPtr, idxList);
 }
 
 // ----------------------------------------------------------------------------
@@ -253,35 +333,22 @@ TypeMemberDefinition* TypeDefinition::getMemberDef(int idx) const
 
 // ----------------------------------------------------------------------------
 
-Value *BinaryExprAST::codegen() {
-  // Special case '=' because we don't want to emit the LHS as an expression.
-  if (Op == '=') {
-    // Assignment requires the LHS to be an identifier.
-    VariableExprAST *LHSE = static_cast<VariableExprAST *>(LHS.get());
-    if (!LHSE)
-      return ErrorV("destination of '=' must be a variable");
-
-    // Codegen the RHS.
-    Value *Val = RHS->codegen();
-    if (!Val)
-      return nullptr;
-
-    // Look up the name.
-    auto item = NamedValues.find(LHSE->getName());
-    if (item == NamedValues.end())
-      return ErrorV("Unknown variable name");
-
-    Value* rawVal = item->second.second;
-    Value* typedValue = codegenCastPrimitive(Val, rawVal->getType());
-
-    Builder.CreateStore(typedValue, rawVal);
-    return Val;
-  }
-
+Value *BinaryExprAST::codegen() 
+{
   Value* L = LHS->codegen();
   Value* R = RHS->codegen();
+
   if (!L || !R)
     return nullptr;
+
+  // automatic dereferentiation done this way is a hack
+  {
+    if (L->getType()->isPointerTy())
+      L = Builder.CreateLoad(L, "deref_lhs");
+
+    if (R->getType()->isPointerTy())
+      R = Builder.CreateLoad(R, "deref_rhs");
+  }
 
   if (L->getType()->isIntegerTy() && 
       R->getType()->isIntegerTy())
@@ -311,44 +378,71 @@ Value *BinaryExprAST::codegen() {
 
 // ----------------------------------------------------------------------------
 
-Value* InitExprAST::codegenInit(TypeDefinition* typeDef)
+Value* InitExprAST::codegenInitExpr(TypeDefinition* typeDef, bool targetIsRefType)
 {
-  if (PrimitiveInitExpr)
+  if (targetIsRefType)
   {
-    Value* val = PrimitiveInitExpr->codegen();
-    Type* expectedTy = NamedTypes.getTypeLlvm(typeDef->getTypeName());
+    assert(PrimitiveInitExpr);
+    assert(CompoundInitList.empty());
 
-    if (expectedTy->isStructTy())
-    {
-      assert(val->getType() == expectedTy);
-      return val;
-    }
-    else
-    {
-      // primitive types are subject to implicit casting
-      return codegenCastPrimitive(val, expectedTy);
-    }
+    // must be l-value, return pointer
+    auto* sourceVarExpr = static_cast<VariableExprAST*>(PrimitiveInitExpr.get());
+    sourceVarExpr->setCodegenForceReference();
+
+    if (!NamedValues.hasName(sourceVarExpr->getName()))
+      return ErrorV("Reference to unknown variable name");
+
+    return sourceVarExpr->codegen();
   }
   else
   {
-    Type* ty = NamedTypes.getTypeLlvm(typeDef->getTypeName());
-    StructType* compoundTy = static_cast<StructType*>(ty);
-
-    Value* compoundValPtr = Builder.CreateAlloca(compoundTy);
-
-    for (int i = 0; i < CompoundInitList.size(); i++)
+    if (PrimitiveInitExpr)
     {
-      TypeMemberDefinition* memberDef = typeDef->getMemberDef(i);
+      Value* val = PrimitiveInitExpr->codegen();
+      Type* expectedTy = NamedTypes.getTypeLlvm(typeDef->getTypeName());
 
-      Type* memberTy = NamedTypes.getTypeLlvm(memberDef->getTypeName());
-      Value* memberPtr = Builder.CreateStructGEP(compoundTy, compoundValPtr, i);
+      if (expectedTy->isStructTy())
+      {
+        if (val->getType()->isPointerTy())
+          val = Builder.CreateLoad(val, "deref_val");
 
-      Value* initVal = CompoundInitList[i]->codegenInit(memberDef->getTypeDef());
+        assert(val->getType() == expectedTy);
+        return val;
+      }
+      else
+      {
+        // automatic dereferentiation done this way is a hack
+        if (val->getType()->isPointerTy())
+          val = Builder.CreateLoad(val, "deref_val");
 
-      Builder.CreateStore(initVal, memberPtr);
+        // primitive types are subject to implicit casting
+        return codegenCastPrimitive(val, expectedTy);
+      }
     }
+    else
+    {
+      Type* ty = NamedTypes.getTypeLlvm(typeDef->getTypeName());
+      StructType* compoundTy = static_cast<StructType*>(ty);
 
-    return Builder.CreateLoad(compoundValPtr, "tmp");
+      Value* compoundValPtr = Builder.CreateAlloca(compoundTy);
+
+      for (int i = 0; i < CompoundInitList.size(); i++)
+      {
+        TypeMemberDefinition* memberDef = typeDef->getMemberDef(i);
+
+        TypeDefinition* memberTypeDef = memberDef->getTypeDef();
+        bool memberIsRef = memberDef->isReference();
+
+        Value* initVal = CompoundInitList[i]->codegenInitExpr(memberTypeDef, memberIsRef);
+
+        Type* memberTy = NamedTypes.getTypeLlvm(memberDef->getTypeName());
+        Value* memberPtr = Builder.CreateStructGEP(compoundTy, compoundValPtr, i);
+
+        Builder.CreateStore(initVal, memberPtr);
+      }
+
+      return Builder.CreateLoad(compoundValPtr, "tmp");
+    }
   }
 }
 
@@ -363,7 +457,7 @@ Value* VarDefinitionExprAST::codegen()
   Value *initVal = nullptr;
   if (initExpr_rawptr)
   {
-    initVal = initExpr_rawptr->codegenInit(VarTyDef);
+    initVal = initExpr_rawptr->codegenInitExpr(VarTyDef, VarIsReference);
     if (!initVal)
       return nullptr;
   }
@@ -372,21 +466,26 @@ Value* VarDefinitionExprAST::codegen()
   Value* valPtr;
   bool requiresInit;
 
-  std::tie(valPtr, requiresInit) = codegenDefinition(ty);
+  std::tie(valPtr, requiresInit) = codegenDefinition(ty, initVal);
 
   if (requiresInit && !initVal)
     initVal = NamedTypes.getDefaultInitValue(VarTyDef->getTypeName());
 
-  if (initVal)
-    codegenInit(valPtr, ty, initVal);
+  if (initVal && !VarIsReference)
+    codegenInitValue(valPtr, ty, initVal);
 
-  NamedValues[VarName] = std::make_pair(VarTyDef, valPtr);
+  ValueLookup::Record_t namedValue;
+  namedValue.valuePtr = valPtr;
+  namedValue.typeDef = VarTyDef;
+  namedValue.isReference = VarIsReference;
+
+  NamedValues.add(VarName, std::move(namedValue));
   return valPtr;
 }
 
 // ----------------------------------------------------------------------------
 
-void VarDefinitionExprAST::codegenInit(Value* valPtr, Type* valTy, Value* init)
+void VarDefinitionExprAST::codegenInitValue(Value* valPtr, Type* valTy, Value* init)
 {
   if (valTy->isStructTy())
   {
@@ -395,6 +494,10 @@ void VarDefinitionExprAST::codegenInit(Value* valPtr, Type* valTy, Value* init)
   }
   else
   {
+    // automatic dereferentiation done this way is a hack
+    if (init->getType()->isPointerTy())
+      init = Builder.CreateLoad(init, "deref_init");
+
     Value* typedInitValue = codegenCastPrimitive(init, valTy);
     Builder.CreateStore(typedInitValue, valPtr);
   }
@@ -402,12 +505,12 @@ void VarDefinitionExprAST::codegenInit(Value* valPtr, Type* valTy, Value* init)
 
 // ----------------------------------------------------------------------------
 
-std::pair<Value*, bool> VarDefinitionExprAST::codegenDefinition(Type* ty)
+std::pair<Value*, bool> VarDefinitionExprAST::codegenDefinition(Type* ty, Value* initPtr)
 {
   Value* voidPtr;
   bool requiresInit;
 
-  // this is minimalistic! still only global primitive variables
+  // this is minimalistic! still only global variables
   int varId = JitCompiler->getOrCreateStatefulVariable(VarName, ty);
 
   if (JitCompiler->hasMemLocation(varId))
@@ -417,12 +520,30 @@ std::pair<Value*, bool> VarDefinitionExprAST::codegenDefinition(Type* ty)
   }
   else
   {
-    requiresInit = true;
-    voidPtr = codegenAllocMemory(varId);
-    codegenSubmitMemoryLocation(varId, voidPtr);
+    if (VarIsReference)
+    {
+      // new reference, it doesn't own any memory so we don't need to initialize it
+      requiresInit = true;
+      assert(initPtr->getType() == ty->getPointerTo());
+
+      // this back-and-forth bitcasting doesn't cause overhead, 
+      // but it may be solved better at some point
+      auto& Ctx = getGlobalContext();
+      Type* voidPtrTy = Type::getInt8PtrTy(Ctx);
+      voidPtr = Builder.CreateBitCast(initPtr, voidPtrTy, VarName + "_ptr");
+
+      codegenSubmitMemoryLocation(varId, voidPtr);
+    }
+    else
+    {
+      // regular new instance
+      requiresInit = true;
+      voidPtr = codegenAllocMemory(varId);
+      codegenSubmitMemoryLocation(varId, voidPtr);
+    }
   }
 
-  // cast pointer to type
+  // cast pointer to typed pointer
   Type* ptrTy = ty->getPointerTo();
   Value* typedPtr = Builder.CreateBitCast(voidPtr, ptrTy, VarName + "_ptr");
 
@@ -563,6 +684,10 @@ Function *TopLevelExprAST::codegen(StatefulJit& jit,
   // codegen Body
   if (Value* retVal = Body->codegen())
   {
+    // automatic dereferentiation done this way is a hack
+    if (retVal->getType()->isPointerTy())
+      retVal = Builder.CreateLoad(retVal, "deref_retVal");
+
     Type* retTy = Type::getDoubleTy(C);
     Value* typedRetVal = ExprAST::codegenCastPrimitive(retVal, retTy);
 

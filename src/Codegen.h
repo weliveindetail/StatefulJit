@@ -32,6 +32,30 @@ static Type* getDefaultIntTy()
 
 // ----------------------------------------------------------------------------
 
+class ValueLookup
+{
+public:
+  struct Record_t
+  {
+    llvm::Value* valuePtr;
+    TypeDefinition* typeDef;
+    bool isReference;
+  };
+
+  bool hasName(std::string name) const;
+
+  void add(std::string name, Record_t record);
+  std::pair<bool, Record_t*> find(std::string name);
+
+  void clear();
+
+private:
+  std::map<std::string, Record_t> ValueRecords;
+
+};
+
+// ----------------------------------------------------------------------------
+
 class TypeLookup
 {
 public:

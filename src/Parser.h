@@ -127,6 +127,10 @@ static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
 
   getNextToken(); // eat the type name
 
+  bool isReference = (CurTok == tok_ref_type);
+  if (isReference)
+    getNextToken(); // eat the '&'
+
   if (CurTok != tok_identifier)
     return Error("expected identifier for variable name");
 
@@ -144,7 +148,7 @@ static std::unique_ptr<ExprAST> ParseVarDefinitionExpr()
   }
 
   return std::make_unique<VarDefinitionExprAST>(
-    std::move(name), type_rawptr, std::move(init));
+    std::move(name), type_rawptr, std::move(init), isReference);
 }
 
 // ----------------------------------------------------------------------------
@@ -164,6 +168,11 @@ static std::unique_ptr<TypeMemberDefinition> ParseCompoundMemberDefinitionStmt()
   }
 
   getNextToken(); // eat identifier
+
+  bool isReference = (CurTok == tok_ref_type);
+  if (isReference)
+    getNextToken(); // eat the '&'
+
   if (CurTok != tok_identifier)
     assert(false && "expected identifier for member name");
 
@@ -171,7 +180,7 @@ static std::unique_ptr<TypeMemberDefinition> ParseCompoundMemberDefinitionStmt()
   getNextToken(); // eat identifier
 
   return std::make_unique<TypeMemberDefinition>(
-    std::move(name), type_rawptr);
+    std::move(name), type_rawptr, isReference);
 }
 
 // ----------------------------------------------------------------------------
