@@ -69,9 +69,9 @@ private:
   bool CodegenForceReference;
 
   llvm::Value* resolveCompoundMemberAccess(
-                                    llvm::Value* valuePtr, 
-                                    TypeDefinition* typeDef, 
-                                    bool isReference);
+                                    llvm::Value* valuePtr,
+                                    TypeDefinition* typeDef,
+                                    int startIdx);
 
   llvm::Value* dereferenceCompoundMemberChainItem(
                                     llvm::Value* valPtr,

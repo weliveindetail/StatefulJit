@@ -235,9 +235,10 @@ Value *VariableExprAST::codegen()
   }
   else
   {
+    int startIdx = 0;
     return resolveCompoundMemberAccess(namedValue->valuePtr, 
                                        namedValue->typeDef, 
-                                       namedValue->isReference);
+                                       startIdx);
   }
 }
 
@@ -245,7 +246,7 @@ Value *VariableExprAST::codegen()
 
 Value* VariableExprAST::resolveCompoundMemberAccess(Value* valuePtr,
                                                     TypeDefinition* typeDef,
-                                                    bool isReference)
+                                                    int startIdx)
 {
   Type* idxTy = getDefaultIntTy();
 
@@ -262,7 +263,7 @@ Value* VariableExprAST::resolveCompoundMemberAccess(Value* valuePtr,
   std::vector<Value*> idxList { ConstantInt::get(idxTy, 0, true) };
   assert(NamedTypes.getTypeLlvm(typeDef->getTypeName())->isStructTy());
 
-  for (int i = 0; i < memberChainLength; i++)
+  for (int i = startIdx; i < memberChainLength; i++)
   {
     std::string memberName = MemberAccess[i];
     int memberIdx = nestedTypeDef->getMemberIndex(memberName);
@@ -276,26 +277,21 @@ Value* VariableExprAST::resolveCompoundMemberAccess(Value* valuePtr,
 
     if (memberIsReferenceToCompound)
     {
-      parentValPtr = dereferenceCompoundMemberChainItem(
+      Value* memberValPtr = dereferenceCompoundMemberChainItem(
         parentValPtr, parentTypeDef, std::move(idxList), true);
 
-      idxList = { ConstantInt::get(idxTy, 0, true) };
-      assert(NamedTypes.getTypeLlvm(memberTypeDef->getTypeName())->isStructTy());
-
-      parentTypeDef = memberTypeDef;
+      int memberIdx = i + 1;
+      return resolveCompoundMemberAccess(memberValPtr, memberTypeDef, memberIdx);
     }
 
     lastMemberWasReference = memberDef->isReference();
     nestedTypeDef = memberTypeDef;
   }
 
-  if (!memberIsReferenceToCompound)
-  {
-    bool load = lastMemberWasReference || !CodegenForceReference;
+  bool load = lastMemberWasReference || !CodegenForceReference;
 
-    parentValPtr = dereferenceCompoundMemberChainItem(
-      parentValPtr, parentTypeDef, std::move(idxList), load);
-  }
+  parentValPtr = dereferenceCompoundMemberChainItem(
+    parentValPtr, parentTypeDef, std::move(idxList), load);
 
   return parentValPtr;
 }
