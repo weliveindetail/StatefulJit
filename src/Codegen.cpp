@@ -235,51 +235,82 @@ Value *VariableExprAST::codegen()
   }
   else
   {
-    int memberChainIdx = 0;
-    int memberChainLength = MemberAccess.size();
+    return resolveCompoundMemberAccess(namedValue->valuePtr, 
+                                       namedValue->typeDef, 
+                                       namedValue->isReference);
+  }
+}
 
-    Type* idxTy = getDefaultIntTy();
+// ----------------------------------------------------------------------------
 
-    Value* memberValPtr = namedValue->valuePtr;
-    TypeDefinition* parentTypeDef = namedValue->typeDef;
-    TypeDefinition* nestedTypeDef = parentTypeDef;
-    bool memberIsReferenceToCompound = false;
-    bool lastMemberWasReference = namedValue->isReference;
+Value* VariableExprAST::resolveCompoundMemberAccess(Value* valuePtr,
+                                                    TypeDefinition* typeDef,
+                                                    bool isReference)
+{
+  Type* idxTy = getDefaultIntTy();
 
-    while (memberChainIdx < MemberAccess.size())
+  Value* parentValPtr = valuePtr;
+  int memberChainLength = MemberAccess.size();
+
+  bool lastMemberWasReference = isReference;
+  bool memberIsReferenceToCompound = false;
+
+  TypeDefinition* parentTypeDef = typeDef;
+  TypeDefinition* nestedTypeDef = parentTypeDef;
+
+  // index through struct pointer
+  std::vector<Value*> idxList { ConstantInt::get(idxTy, 0, true) };
+  assert(NamedTypes.getTypeLlvm(typeDef->getTypeName())->isStructTy());
+
+  for (int i = 0; i < memberChainLength; i++)
+  {
+    std::string memberName = MemberAccess[i];
+    int memberIdx = nestedTypeDef->getMemberIndex(memberName);
+
+    idxList.push_back(ConstantInt::get(idxTy, memberIdx, true));
+
+    auto* memberDef = nestedTypeDef->getMemberDef(memberIdx);
+    auto* memberTypeDef = memberDef->getTypeDef();
+
+    memberIsReferenceToCompound = memberDef->isReference() && !memberTypeDef->isPrimitve();
+
+    if (memberIsReferenceToCompound)
     {
-      std::vector<Value*> idxList;
+      parentValPtr = dereferenceCompoundMemberChainItem(
+        parentValPtr, parentTypeDef, std::move(idxList));
 
-      // initial struct deref, as it is a pointer itself
-      idxList.push_back(ConstantInt::get(idxTy, 0, true));
+      idxList = { ConstantInt::get(idxTy, 0, true) };
+      assert(NamedTypes.getTypeLlvm(memberTypeDef->getTypeName())->isStructTy());
 
-      do {
-        std::string memberName = MemberAccess[memberChainIdx++];
-        int memberIdx = nestedTypeDef->getMemberIndex(memberName);
-
-        idxList.push_back(ConstantInt::get(idxTy, memberIdx, true));
-
-        auto* memberDef = nestedTypeDef->getMemberDef(memberIdx);
-        auto* memberTypeDef = memberDef->getTypeDef();
-
-        memberIsReferenceToCompound = memberDef->isReference() && !memberTypeDef->isPrimitve();
-        lastMemberWasReference = memberDef->isReference();
-        nestedTypeDef = memberTypeDef;
-      } 
-      while (memberChainIdx < memberChainLength && !memberIsReferenceToCompound);
-
-      Type* ty = NamedTypes.getTypeLlvm(parentTypeDef->getTypeName());
-      StructType* structTy = static_cast<StructType*>(ty);
-
-      Value* memberPtr = Builder.CreateInBoundsGEP(structTy, memberValPtr, idxList);
-      memberValPtr = Builder.CreateLoad(memberPtr, Name + "_member");
-
-      parentTypeDef = nestedTypeDef;
+      parentTypeDef = memberTypeDef;
     }
 
-    assert(memberValPtr->getType()->isPointerTy() == lastMemberWasReference);
-    return memberValPtr;
+    lastMemberWasReference = memberDef->isReference();
+    nestedTypeDef = memberTypeDef;
   }
+
+  if (!memberIsReferenceToCompound)
+  {
+    parentValPtr = dereferenceCompoundMemberChainItem(
+      parentValPtr, parentTypeDef, std::move(idxList));
+  }
+
+  assert(parentValPtr->getType()->isPointerTy() == lastMemberWasReference);
+  return parentValPtr;
+}
+
+// ----------------------------------------------------------------------------
+
+Value* VariableExprAST::dereferenceCompoundMemberChainItem(
+                                                  Value* valPtr,
+                                                  TypeDefinition* typeDef, 
+                                                  std::vector<Value*> idxList)
+{
+  Type* ty = NamedTypes.getTypeLlvm(typeDef->getTypeName());
+  StructType* structTy = static_cast<StructType*>(ty);
+
+  Value* memberPtr = Builder.CreateInBoundsGEP(structTy, valPtr, idxList);
+  return Builder.CreateLoad(memberPtr, Name + "_member");
 }
 
 // ----------------------------------------------------------------------------
