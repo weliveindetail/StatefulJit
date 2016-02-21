@@ -235,42 +235,51 @@ Value *VariableExprAST::codegen()
   }
   else
   {
-    Type* ty = NamedTypes.getTypeLlvm(namedValue->typeDef->getTypeName());
-    StructType* structTy = static_cast<StructType*>(ty);
+    int memberChainIdx = 0;
+    int memberChainLength = MemberAccess.size();
 
-    std::vector<Value*> idxList = computeMemberGepIndices(namedValue->typeDef);
-    Value* memberPtr = Builder.CreateInBoundsGEP(structTy, namedValue->valuePtr, idxList);
+    Type* idxTy = getDefaultIntTy();
 
-    return Builder.CreateLoad(memberPtr, Name + "_member");
+    Value* memberValPtr = namedValue->valuePtr;
+    TypeDefinition* parentTypeDef = namedValue->typeDef;
+    TypeDefinition* nestedTypeDef = parentTypeDef;
+    bool memberIsReferenceToCompound = false;
+    bool lastMemberWasReference = namedValue->isReference;
+
+    while (memberChainIdx < MemberAccess.size())
+    {
+      std::vector<Value*> idxList;
+
+      // initial struct deref, as it is a pointer itself
+      idxList.push_back(ConstantInt::get(idxTy, 0, true));
+
+      do {
+        std::string memberName = MemberAccess[memberChainIdx++];
+        int memberIdx = nestedTypeDef->getMemberIndex(memberName);
+
+        idxList.push_back(ConstantInt::get(idxTy, memberIdx, true));
+
+        auto* memberDef = nestedTypeDef->getMemberDef(memberIdx);
+        auto* memberTypeDef = memberDef->getTypeDef();
+
+        memberIsReferenceToCompound = memberDef->isReference() && !memberTypeDef->isPrimitve();
+        lastMemberWasReference = memberDef->isReference();
+        nestedTypeDef = memberTypeDef;
+      } 
+      while (memberChainIdx < memberChainLength && !memberIsReferenceToCompound);
+
+      Type* ty = NamedTypes.getTypeLlvm(parentTypeDef->getTypeName());
+      StructType* structTy = static_cast<StructType*>(ty);
+
+      Value* memberPtr = Builder.CreateInBoundsGEP(structTy, memberValPtr, idxList);
+      memberValPtr = Builder.CreateLoad(memberPtr, Name + "_member");
+
+      parentTypeDef = nestedTypeDef;
+    }
+
+    assert(memberValPtr->getType()->isPointerTy() == lastMemberWasReference);
+    return memberValPtr;
   }
-}
-
-// ----------------------------------------------------------------------------
-
-std::vector<Value*>
-VariableExprAST::computeMemberGepIndices(TypeDefinition* def)
-{
-  Type* idxTy = getDefaultIntTy();
-  int memberChainLength = MemberAccess.size();
-
-  std::vector<Value*> idxList;
-  idxList.reserve(memberChainLength + 1);
-
-  // initial struct deref, as it is a pointer itself
-  idxList.push_back(ConstantInt::get(idxTy, 0, true));
-
-  TypeDefinition* parentTypeDef = def;
-  for (int i = 0; i < memberChainLength; i++)
-  {
-    std::string memberName = MemberAccess[i];
-    int memberIdx = parentTypeDef->getMemberIndex(memberName);
-
-    idxList.push_back(ConstantInt::get(idxTy, memberIdx, true));
-
-    parentTypeDef = parentTypeDef->getMemberDef(memberIdx)->getTypeDef();
-  }
-
-  return idxList;
 }
 
 // ----------------------------------------------------------------------------

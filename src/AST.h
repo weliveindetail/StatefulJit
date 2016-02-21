@@ -65,9 +65,6 @@ public:
 private:
   std::string Name;
   std::vector<std::string> MemberAccess;
-
-  std::vector<llvm::Value*>
-    computeMemberGepIndices(TypeDefinition* def);
 };
 
 // ----------------------------------------------------------------------------
@@ -109,6 +106,8 @@ public:
 
   int getMemberIndex(std::string memberName) const;
   TypeMemberDefinition* getMemberDef(int idx) const;
+
+  bool isPrimitve() const { return IsPrimitive; }
 
 private:
   std::string TyName;
