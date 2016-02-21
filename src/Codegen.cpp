@@ -13,8 +13,46 @@ using llvm::orc::StatefulJit;
 
 static StatefulJit* JitCompiler;
 static IRBuilder<> Builder(getGlobalContext());
-static std::map<std::string, std::pair<TypeDefinition*, Value*>> NamedValues;
+static ValueLookup NamedValues;
 static TypeLookup NamedTypes;
+
+// ----------------------------------------------------------------------------
+
+void ValueLookup::add(std::string name, Record_t record)
+{
+  assert(!hasName(name));
+  ValueRecords[name] = std::move(record);
+}
+
+// ----------------------------------------------------------------------------
+
+std::pair<bool, ValueLookup::Record_t*> 
+ValueLookup::find(std::string name)
+{
+  auto it = ValueRecords.find(name);
+  if (it == ValueRecords.end())
+  {
+    return std::make_pair(false, nullptr);
+  }
+  else
+  {
+    return std::make_pair(true, &it->second);
+  }
+}
+
+// ----------------------------------------------------------------------------
+
+bool ValueLookup::hasName(std::string name) const
+{
+  return ValueRecords.find(name) != ValueRecords.end();
+}
+
+// ----------------------------------------------------------------------------
+
+void ValueLookup::clear()
+{
+  ValueRecords.clear();
+}
 
 // ----------------------------------------------------------------------------
 
@@ -179,24 +217,26 @@ Value *NumberExprAST::codegen() {
 
 Value *VariableExprAST::codegen() 
 {
-  auto instanceIt = NamedValues.find(Name);
-  if (instanceIt == NamedValues.end())
+  bool found;
+  ValueLookup::Record_t* namedValue;
+  std::tie(found, namedValue) = NamedValues.find(Name);
+
+  if (!found)
     return ErrorV("Unknown variable name");
 
-  TypeDefinition* def = instanceIt->second.first;
-  Value* val = instanceIt->second.second;
+  assert(namedValue->valuePtr->getType()->isPointerTy());
 
   if (MemberAccess.empty())
   {
-    return Builder.CreateLoad(val, Name.c_str());
+    return Builder.CreateLoad(namedValue->valuePtr, Name.c_str());
   }
   else
   {
-    Type* ty = NamedTypes.getTypeLlvm(def->getTypeName());
+    Type* ty = NamedTypes.getTypeLlvm(namedValue->typeDef->getTypeName());
     StructType* structTy = static_cast<StructType*>(ty);
 
-    std::vector<Value*> idxList = computeMemberGepIndices(def);
-    Value* memberPtr = Builder.CreateInBoundsGEP(structTy, val, idxList);
+    std::vector<Value*> idxList = computeMemberGepIndices(namedValue->typeDef);
+    Value* memberPtr = Builder.CreateInBoundsGEP(structTy, namedValue->valuePtr, idxList);
 
     return Builder.CreateLoad(memberPtr, Name + "_member");
   }
@@ -298,12 +338,15 @@ Value* InitExprAST::codegenInitExpr(TypeDefinition* typeDef, bool targetIsRefTyp
     // must be l-value, return pointer
     auto* sourceVarExpr = static_cast<VariableExprAST*>(PrimitiveInitExpr.get());
 
-    auto it = NamedValues.find(sourceVarExpr->getName());
-    if (it == NamedValues.end())
+    bool found;
+    ValueLookup::Record_t* namedValue;
+    std::tie(found, namedValue) = NamedValues.find(sourceVarExpr->getName());
+
+    if (!found)
       return ErrorV("Reference to unknown variable name");
 
-    assert(typeDef == it->second.first && "Reference type mismatch");
-    return it->second.second;
+    assert(typeDef == namedValue->typeDef && "Reference type mismatch");
+    return namedValue->valuePtr;
   }
   else
   {
@@ -378,7 +421,12 @@ Value* VarDefinitionExprAST::codegen()
   if (initVal && !VarIsReference)
     codegenInitValue(valPtr, ty, initVal);
 
-  NamedValues[VarName] = std::make_pair(VarTyDef, valPtr);
+  ValueLookup::Record_t namedValue;
+  namedValue.valuePtr = valPtr;
+  namedValue.typeDef = VarTyDef;
+  namedValue.isReference = VarIsReference;
+
+  NamedValues.add(VarName, std::move(namedValue));
   return valPtr;
 }
 
