@@ -379,6 +379,9 @@ Value* InitExprAST::codegenInitExpr(TypeDefinition* typeDef, bool targetIsRefTyp
 
       if (expectedTy->isStructTy())
       {
+        if (val->getType()->isPointerTy())
+          val = Builder.CreateLoad(val, "deref_val");
+
         assert(val->getType() == expectedTy);
         return val;
       }

@@ -283,9 +283,14 @@ TEST(LanguageFeatures, References)
     def t5 x5 = (8), t5& y5 = x5, t6 x6 = (y5) run x6.b.a;
   )"));
   EXPECT_EQ(9.0, Eval(*jit, R"(
-    types t7: struct { int& a },
+    types t7: struct { int a },
           t8: struct { t7& b }
-    def int q = 9, t7 x7 = (q), t7& y7 = x7, t8 x8 = (y7) run x8.b.a;
+    def t7 x7 = (9), t8 x8 = (x7), t7 y7 = x8.b run y7.a;
+  )"));
+  EXPECT_EQ(12.0, Eval(*jit, R"(
+    types t11: struct { int& a },
+          t12: struct { t11& b }
+    def int q = 12, t11 x11 = (q), t11& y11 = x11, t12 x12 = (y11) run x12.b.a;
   )"));
   /*EXPECT_EQ(10.0, Eval(*jit, R"(
     types 
