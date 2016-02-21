@@ -254,7 +254,6 @@ Value* VariableExprAST::resolveCompoundMemberAccess(Value* valuePtr,
   int memberChainLength = MemberAccess.size();
 
   bool lastMemberWasReference = false;
-  bool memberIsReferenceToCompound = false;
 
   TypeDefinition* parentTypeDef = typeDef;
   TypeDefinition* nestedTypeDef = parentTypeDef;
@@ -273,12 +272,12 @@ Value* VariableExprAST::resolveCompoundMemberAccess(Value* valuePtr,
     auto* memberDef = nestedTypeDef->getMemberDef(memberIdx);
     auto* memberTypeDef = memberDef->getTypeDef();
 
-    memberIsReferenceToCompound = memberDef->isReference() && !memberTypeDef->isPrimitve();
-
-    if (memberIsReferenceToCompound)
+    if (memberDef->isReference() && !memberTypeDef->isPrimitve())
     {
-      Value* memberValPtr = dereferenceCompoundMemberChainItem(
-        parentValPtr, parentTypeDef, std::move(idxList), true);
+      Value* memberValPtrPtr = computeMemberChainGep(
+        parentValPtr, parentTypeDef, std::move(idxList));
+
+      Value* memberValPtr = Builder.CreateLoad(memberValPtrPtr, Name + "_member");
 
       int memberIdx = i + 1;
       return resolveCompoundMemberAccess(memberValPtr, memberTypeDef, memberIdx);
@@ -288,31 +287,29 @@ Value* VariableExprAST::resolveCompoundMemberAccess(Value* valuePtr,
     nestedTypeDef = memberTypeDef;
   }
 
-  bool load = lastMemberWasReference || !CodegenForceReference;
+  parentValPtr = computeMemberChainGep(
+    parentValPtr, parentTypeDef, std::move(idxList));
 
-  parentValPtr = dereferenceCompoundMemberChainItem(
-    parentValPtr, parentTypeDef, std::move(idxList), load);
-
-  return parentValPtr;
+  if (!lastMemberWasReference && CodegenForceReference)
+  {
+    return parentValPtr;
+  }
+  else
+  {
+    return Builder.CreateLoad(parentValPtr, Name + "_member");
+  }
 }
 
 // ----------------------------------------------------------------------------
 
-Value* VariableExprAST::dereferenceCompoundMemberChainItem(
-                                                  Value* valPtr,
-                                                  TypeDefinition* typeDef, 
-                                                  std::vector<Value*> idxList,
-                                                  bool dereference)
+Value* VariableExprAST::computeMemberChainGep(Value* valPtr,
+                                              TypeDefinition* typeDef, 
+                                              std::vector<Value*> idxList)
 {
   Type* ty = NamedTypes.getTypeLlvm(typeDef->getTypeName());
   StructType* structTy = static_cast<StructType*>(ty);
 
-  Value* memberPtr = Builder.CreateInBoundsGEP(structTy, valPtr, idxList);
-
-  if (dereference)
-    return Builder.CreateLoad(memberPtr, Name + "_member");
-  else
-    return memberPtr;
+  return Builder.CreateInBoundsGEP(structTy, valPtr, idxList);
 }
 
 // ----------------------------------------------------------------------------
