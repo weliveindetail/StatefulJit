@@ -228,7 +228,7 @@ Value *VariableExprAST::codegen()
 
   if (MemberAccess.empty())
   {
-    if (namedValue->isReference)
+    if (namedValue->isReference || CodegenForceReference)
       return namedValue->valuePtr;
 
     return Builder.CreateLoad(namedValue->valuePtr, Name.c_str());
@@ -252,7 +252,7 @@ Value* VariableExprAST::resolveCompoundMemberAccess(Value* valuePtr,
   Value* parentValPtr = valuePtr;
   int memberChainLength = MemberAccess.size();
 
-  bool lastMemberWasReference = isReference;
+  bool lastMemberWasReference = false;
   bool memberIsReferenceToCompound = false;
 
   TypeDefinition* parentTypeDef = typeDef;
@@ -277,7 +277,7 @@ Value* VariableExprAST::resolveCompoundMemberAccess(Value* valuePtr,
     if (memberIsReferenceToCompound)
     {
       parentValPtr = dereferenceCompoundMemberChainItem(
-        parentValPtr, parentTypeDef, std::move(idxList));
+        parentValPtr, parentTypeDef, std::move(idxList), true);
 
       idxList = { ConstantInt::get(idxTy, 0, true) };
       assert(NamedTypes.getTypeLlvm(memberTypeDef->getTypeName())->isStructTy());
@@ -291,11 +291,12 @@ Value* VariableExprAST::resolveCompoundMemberAccess(Value* valuePtr,
 
   if (!memberIsReferenceToCompound)
   {
+    bool load = lastMemberWasReference || !CodegenForceReference;
+
     parentValPtr = dereferenceCompoundMemberChainItem(
-      parentValPtr, parentTypeDef, std::move(idxList));
+      parentValPtr, parentTypeDef, std::move(idxList), load);
   }
 
-  assert(parentValPtr->getType()->isPointerTy() == lastMemberWasReference);
   return parentValPtr;
 }
 
@@ -304,13 +305,18 @@ Value* VariableExprAST::resolveCompoundMemberAccess(Value* valuePtr,
 Value* VariableExprAST::dereferenceCompoundMemberChainItem(
                                                   Value* valPtr,
                                                   TypeDefinition* typeDef, 
-                                                  std::vector<Value*> idxList)
+                                                  std::vector<Value*> idxList,
+                                                  bool dereference)
 {
   Type* ty = NamedTypes.getTypeLlvm(typeDef->getTypeName());
   StructType* structTy = static_cast<StructType*>(ty);
 
   Value* memberPtr = Builder.CreateInBoundsGEP(structTy, valPtr, idxList);
-  return Builder.CreateLoad(memberPtr, Name + "_member");
+
+  if (dereference)
+    return Builder.CreateLoad(memberPtr, Name + "_member");
+  else
+    return memberPtr;
 }
 
 // ----------------------------------------------------------------------------
@@ -390,16 +396,12 @@ Value* InitExprAST::codegenInitExpr(TypeDefinition* typeDef, bool targetIsRefTyp
 
     // must be l-value, return pointer
     auto* sourceVarExpr = static_cast<VariableExprAST*>(PrimitiveInitExpr.get());
+    sourceVarExpr->setCodegenForceReference();
 
-    bool found;
-    ValueLookup::Record_t* namedValue;
-    std::tie(found, namedValue) = NamedValues.find(sourceVarExpr->getName());
-
-    if (!found)
+    if (!NamedValues.hasName(sourceVarExpr->getName()))
       return ErrorV("Reference to unknown variable name");
 
-    assert(typeDef == namedValue->typeDef && "Reference type mismatch");
-    return namedValue->valuePtr;
+    return sourceVarExpr->codegen();
   }
   else
   {

@@ -42,6 +42,8 @@ public:
     bool isReference;
   };
 
+  bool hasName(std::string name) const;
+
   void add(std::string name, Record_t record);
   std::pair<bool, Record_t*> find(std::string name);
 
@@ -50,9 +52,7 @@ public:
 private:
   std::map<std::string, Record_t> ValueRecords;
 
-  bool hasName(std::string name) const;
 };
-
 
 // ----------------------------------------------------------------------------
 

@@ -57,7 +57,8 @@ public:
   VariableExprAST(std::string name, 
                   std::vector<std::string> memberAccess)
     : Name(std::move(name))
-    , MemberAccess(std::move(memberAccess)) {}
+    , MemberAccess(std::move(memberAccess))
+    , CodegenForceReference(false) {}
 
   std::string getName() const { return Name; }
   llvm::Value *codegen() override;
@@ -65,6 +66,7 @@ public:
 private:
   std::string Name;
   std::vector<std::string> MemberAccess;
+  bool CodegenForceReference;
 
   llvm::Value* resolveCompoundMemberAccess(
                                     llvm::Value* valuePtr, 
@@ -74,7 +76,18 @@ private:
   llvm::Value* dereferenceCompoundMemberChainItem(
                                     llvm::Value* valPtr,
                                     TypeDefinition* typeDef,
-                                    std::vector<llvm::Value*> idxList);
+                                    std::vector<llvm::Value*> idxList,
+                                    bool dereference);
+
+  // workaround for init expresssions to 
+  // force codegen to always return a pointer
+  void setCodegenForceReference()
+  {
+    assert(!CodegenForceReference);
+    CodegenForceReference = true;
+  }
+
+  friend class InitExprAST;
 };
 
 // ----------------------------------------------------------------------------

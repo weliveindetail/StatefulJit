@@ -270,6 +270,10 @@ TEST(LanguageFeatures, References)
     types t2: struct { int a, double& b }
     def double p = 2, t2 x2 = (4, p), t2& y2 = x2 run y2.a + y2.b;
   )"));
+  EXPECT_EQ(15, Eval(*jit, R"(
+    types t15: struct { double a }
+    def t15 x15 = (15), double& r = x15.a run r;
+  )"));
 
   // compound type reference members
   EXPECT_EQ(7.0, Eval(*jit, R"(
@@ -287,10 +291,20 @@ TEST(LanguageFeatures, References)
           t8: struct { t7& b }
     def t7 x7 = (9), t8 x8 = (x7), t7 y7 = x8.b run y7.a;
   )"));
-  EXPECT_EQ(12.0, Eval(*jit, R"(
-    types t11: struct { int& a },
+  EXPECT_EQ(10.0, Eval(*jit, R"(
+    types t9: struct { int a },
+          t10: struct { t9& b }
+    def t9 x9 = (10), t10 x10 = (x9), t9& y9 = x10.b run y9.a;
+  )"));
+  EXPECT_EQ(11.0, Eval(*jit, R"(
+    types t11: struct { int a },
           t12: struct { t11& b }
-    def int q = 12, t11 x11 = (q), t11& y11 = x11, t12 x12 = (y11) run x12.b.a;
+    def t11 x11 = (11), t12 x12 = (x11), t12& y12 = x12, t11& y11 = y12.b run y11.a;
+  )"));
+  EXPECT_EQ(12.0, Eval(*jit, R"(
+    types t13: struct { int& a },
+          t14: struct { t13& b }
+    def int q = 12, t13 x13 = (q), t13& y13 = x13, t14 x14 = (y13) run x14.b.a;
   )"));
   /*EXPECT_EQ(10.0, Eval(*jit, R"(
     types 
