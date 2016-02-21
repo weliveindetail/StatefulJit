@@ -226,69 +226,67 @@ Value *VariableExprAST::codegen()
 
   assert(namedValue->valuePtr->getType()->isPointerTy());
 
-  if (MemberAccess.empty())
-  {
-    if (namedValue->isReference || CodegenForceReference)
-      return namedValue->valuePtr;
+  // for primitive types, references are currently implemented as 
+  // "weak pointers" that just refer to the same memory as the owner
+  bool isReference = MemberAccess.empty() ? false : namedValue->isReference;
+  int startIdx = 0;
 
-    return Builder.CreateLoad(namedValue->valuePtr, Name.c_str());
-  }
-  else
-  {
-    int startIdx = 0;
-    return resolveCompoundMemberAccess(namedValue->valuePtr, 
-                                       namedValue->typeDef, 
-                                       startIdx);
-  }
+  return resolveCompoundMemberAccess(namedValue->valuePtr,
+                                     namedValue->typeDef,
+                                     isReference,
+                                     startIdx);
 }
 
 // ----------------------------------------------------------------------------
 
 Value* VariableExprAST::resolveCompoundMemberAccess(Value* valuePtr,
                                                     TypeDefinition* typeDef,
+                                                    bool isReference,
                                                     int startIdx)
 {
   Type* idxTy = getDefaultIntTy();
 
   Value* parentValPtr = valuePtr;
   int memberChainLength = MemberAccess.size();
+  bool lastMemberWasReference = isReference;
 
-  bool lastMemberWasReference = false;
-
-  TypeDefinition* parentTypeDef = typeDef;
-  TypeDefinition* nestedTypeDef = parentTypeDef;
-
-  // index through struct pointer
-  std::vector<Value*> idxList { ConstantInt::get(idxTy, 0, true) };
-  assert(NamedTypes.getTypeLlvm(typeDef->getTypeName())->isStructTy());
-
-  for (int i = startIdx; i < memberChainLength; i++)
+  if (startIdx < memberChainLength)
   {
-    std::string memberName = MemberAccess[i];
-    int memberIdx = nestedTypeDef->getMemberIndex(memberName);
+    TypeDefinition* parentTypeDef = typeDef;
+    TypeDefinition* nestedTypeDef = parentTypeDef;
 
-    idxList.push_back(ConstantInt::get(idxTy, memberIdx, true));
+    // index through struct pointer
+    std::vector<Value*> idxList { ConstantInt::get(idxTy, 0, true) };
+    assert(NamedTypes.getTypeLlvm(typeDef->getTypeName())->isStructTy());
 
-    auto* memberDef = nestedTypeDef->getMemberDef(memberIdx);
-    auto* memberTypeDef = memberDef->getTypeDef();
-
-    if (memberDef->isReference() && !memberTypeDef->isPrimitve())
+    for (int i = startIdx; i < memberChainLength; i++)
     {
-      Value* memberValPtrPtr = computeMemberChainGep(
-        parentValPtr, parentTypeDef, std::move(idxList));
+      std::string memberName = MemberAccess[i];
+      int memberIdx = nestedTypeDef->getMemberIndex(memberName);
 
-      Value* memberValPtr = Builder.CreateLoad(memberValPtrPtr, Name + "_member");
+      idxList.push_back(ConstantInt::get(idxTy, memberIdx, true));
 
-      int memberIdx = i + 1;
-      return resolveCompoundMemberAccess(memberValPtr, memberTypeDef, memberIdx);
+      auto* memberDef = nestedTypeDef->getMemberDef(memberIdx);
+      auto* memberTypeDef = memberDef->getTypeDef();
+
+      if (memberDef->isReference() && !memberTypeDef->isPrimitve())
+      {
+        Value* memberValPtrPtr = computeMemberChainGep(
+          parentValPtr, parentTypeDef, std::move(idxList));
+
+        Value* memberValPtr = Builder.CreateLoad(memberValPtrPtr, Name + "_member");
+
+        int memberIdx = i + 1;
+        return resolveCompoundMemberAccess(memberValPtr, memberTypeDef, false, memberIdx);
+      }
+
+      lastMemberWasReference = memberDef->isReference();
+      nestedTypeDef = memberTypeDef;
     }
 
-    lastMemberWasReference = memberDef->isReference();
-    nestedTypeDef = memberTypeDef;
+    parentValPtr = computeMemberChainGep(
+      parentValPtr, parentTypeDef, std::move(idxList));
   }
-
-  parentValPtr = computeMemberChainGep(
-    parentValPtr, parentTypeDef, std::move(idxList));
 
   if (!lastMemberWasReference && CodegenForceReference)
   {

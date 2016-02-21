@@ -71,6 +71,7 @@ private:
   llvm::Value* resolveCompoundMemberAccess(
                                     llvm::Value* valuePtr,
                                     TypeDefinition* typeDef,
+                                    bool isReference,
                                     int startIdx);
 
   llvm::Value* computeMemberChainGep(
