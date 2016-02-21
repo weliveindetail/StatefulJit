@@ -66,9 +66,15 @@ private:
   std::string Name;
   std::vector<std::string> MemberAccess;
 
-  llvm::Value* resolveCompoundMemberAccess(llvm::Value* valuePtr, 
-                                           TypeDefinition* typeDef, 
-                                           bool isReference);
+  llvm::Value* resolveCompoundMemberAccess(
+                                    llvm::Value* valuePtr, 
+                                    TypeDefinition* typeDef, 
+                                    bool isReference);
+
+  llvm::Value* dereferenceCompoundMemberChainItem(
+                                    llvm::Value* valPtr,
+                                    TypeDefinition* typeDef,
+                                    std::vector<llvm::Value*> idxList);
 };
 
 // ----------------------------------------------------------------------------
