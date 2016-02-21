@@ -306,24 +306,39 @@ TEST(LanguageFeatures, References)
           t14: struct { t13& b }
     def int q = 12, t13 x13 = (q), t13& y13 = x13, t14 x14 = (y13) run x14.b.a;
   )"));
-  /*EXPECT_EQ(10.0, Eval(*jit, R"(
+
+  // deep member acccess with value and reference members
+  EXPECT_EQ(20.0, Eval(*jit, R"(
     types 
-      t10: struct { int a, double b, int& c, double& d },
-      t11: struct { int a, double b, t10& x, double& d },
-      t12: struct { int a, t11&   x, int& c, double& d },
-      t13: struct { int a, double b, int& c, t12     x },
-      t14: struct { t13 x, double b, int& c, double& d },
-      t15: struct { t14 x, double b, int& c, double& d },
-      t16: struct { int a, double b, int& c, t15&    x },
-      t17: struct { int a, t16    x, int& c, double& d },
-      t18: struct { int a, double b, t17& x, double& d }
+      t20: struct { int a, double b, int& c, double& d },
+      t21: struct { int a, double b, t20& x, double& d },
+      t22: struct { int a, t21&   x, int& c, double& d },
+      t23: struct { int a, double b, int& c, t22     x },
+      t24: struct { t23 x, double b, int& c, double& d },
+      t25: struct { t24 x, double b, int& c, double& d },
+      t26: struct { int a, double b, int& c, t25&    x },
+      t27: struct { int a, t26    x, int& c, double& d },
+      t28: struct { int a, double b, t27& x, double& d }
 
     def 
       int i = 1, 
       double f = 2,
-      t10 x10 = (f, i, i, f), 
-      t11 x11 = ( y7 = x7, t8 x8 = (y7) run x8.b.a;
-  )"));*/
+      int& ii = i, 
+      double& ff = f,
+      t20  x20 = (ii, ff, ii, ff),
+      t21  x21 = (1, 2, x20, f),    t21& y21 = x21,
+      t22  x22 = (1, y21, i, f),    t22& y22 = x22,
+      t23  x23 = (1, 2, i, y22),
+      t24  x24 = (x23, 2, i, f),
+      t25  x25 = (x24, 2, i, f),
+      t26  x26 = (1, 2, i, x25),
+      t27  x27 = (1, x26, i, f),
+      t28  x28 = (1, 2, x27, f)
+
+    run
+      x25.x.x.x.x.x.a + x26.x.x.x.x.x.x.b + 7 +
+      x27.x.x.x.x.x.x.x.c + x28.x.x.x.x.x.x.x.x.d + 7
+  )"));
 }
 
 // ----------------------------------------------------------------------------
