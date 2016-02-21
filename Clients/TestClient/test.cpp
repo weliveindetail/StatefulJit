@@ -258,6 +258,18 @@ TEST(LanguageFeatures, References)
   EXPECT_EQ(2.0, Eval(*jit, "def int e=1+1, int& f=e run f;"));
   EXPECT_EQ(3.0, Eval(*jit, "def int g=3, int& h=g, int i=h run i;"));
   EXPECT_EQ(4.0, Eval(*jit, "def int j=2, int& k=j, int& l=k run k+l;"));
+
+  // compound type reference variables
+  EXPECT_EQ(5.0, Eval(*jit, R"(
+    types t1: struct { int a, double b }
+    def t1 x1 = (2, 3), t1& y1 = x1 run y1.a + y1.b;
+  )"));
+
+  // primitive type reference members
+  EXPECT_EQ(6.0, Eval(*jit, R"(
+    types t2: struct { int a, double& b }
+    def double p = 2, t2 x2 = (4, p), t2& y2 = x2 run y2.a + y2.b;
+  )"));
 }
 
 // ----------------------------------------------------------------------------

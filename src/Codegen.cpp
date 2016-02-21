@@ -228,6 +228,9 @@ Value *VariableExprAST::codegen()
 
   if (MemberAccess.empty())
   {
+    if (namedValue->isReference)
+      return namedValue->valuePtr;
+
     return Builder.CreateLoad(namedValue->valuePtr, Name.c_str());
   }
   else
@@ -297,8 +300,18 @@ Value *BinaryExprAST::codegen()
 {
   Value* L = LHS->codegen();
   Value* R = RHS->codegen();
+
   if (!L || !R)
     return nullptr;
+
+  // automatic dereferentiation done this way is a hack
+  {
+    if (L->getType()->isPointerTy())
+      L = Builder.CreateLoad(L, "deref_lhs");
+
+    if (R->getType()->isPointerTy())
+      R = Builder.CreateLoad(R, "deref_rhs");
+  }
 
   if (L->getType()->isIntegerTy() && 
       R->getType()->isIntegerTy())
@@ -362,6 +375,10 @@ Value* InitExprAST::codegenInitExpr(TypeDefinition* typeDef, bool targetIsRefTyp
       }
       else
       {
+        // automatic dereferentiation done this way is a hack
+        if (val->getType()->isPointerTy())
+          val = Builder.CreateLoad(val, "deref_val");
+
         // primitive types are subject to implicit casting
         return codegenCastPrimitive(val, expectedTy);
       }
@@ -441,6 +458,10 @@ void VarDefinitionExprAST::codegenInitValue(Value* valPtr, Type* valTy, Value* i
   }
   else
   {
+    // automatic dereferentiation done this way is a hack
+    if (init->getType()->isPointerTy())
+      init = Builder.CreateLoad(init, "deref_init");
+
     Value* typedInitValue = codegenCastPrimitive(init, valTy);
     Builder.CreateStore(typedInitValue, valPtr);
   }
@@ -627,6 +648,10 @@ Function *TopLevelExprAST::codegen(StatefulJit& jit,
   // codegen Body
   if (Value* retVal = Body->codegen())
   {
+    // automatic dereferentiation done this way is a hack
+    if (retVal->getType()->isPointerTy())
+      retVal = Builder.CreateLoad(retVal, "deref_retVal");
+
     Type* retTy = Type::getDoubleTy(C);
     Value* typedRetVal = ExprAST::codegenCastPrimitive(retVal, retTy);
 
