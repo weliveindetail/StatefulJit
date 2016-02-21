@@ -69,15 +69,15 @@ private:
   bool CodegenForceReference;
 
   llvm::Value* resolveCompoundMemberAccess(
-                                    llvm::Value* valuePtr, 
-                                    TypeDefinition* typeDef, 
-                                    bool isReference);
+                                    llvm::Value* valuePtr,
+                                    TypeDefinition* typeDef,
+                                    bool isReference,
+                                    int startIdx);
 
-  llvm::Value* dereferenceCompoundMemberChainItem(
+  llvm::Value* computeMemberChainGep(
                                     llvm::Value* valPtr,
                                     TypeDefinition* typeDef,
-                                    std::vector<llvm::Value*> idxList,
-                                    bool dereference);
+                                    std::vector<llvm::Value*> idxList);
 
   // workaround for init expresssions to 
   // force codegen to always return a pointer
