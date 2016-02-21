@@ -65,6 +65,10 @@ public:
 private:
   std::string Name;
   std::vector<std::string> MemberAccess;
+
+  llvm::Value* resolveCompoundMemberAccess(llvm::Value* valuePtr, 
+                                           TypeDefinition* typeDef, 
+                                           bool isReference);
 };
 
 // ----------------------------------------------------------------------------
