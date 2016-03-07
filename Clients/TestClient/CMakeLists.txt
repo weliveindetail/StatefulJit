@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 
 project(TestClient)
 
-add_subdirectory(gtest-1.6.0)
+add_subdirectory(gtest-1.7.0)
 enable_testing()
 
 unset(FILES_src)
